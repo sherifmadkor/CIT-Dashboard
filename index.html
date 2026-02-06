@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CIT Operations Dashboard | ATM Universal Processors</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0a0e1a;
+    --bg-secondary: #111827;
+    --bg-card: rgba(255,255,255,0.03);
+    --border: rgba(255,255,255,0.06);
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --text-dim: #475569;
+    --blue: #3B82F6;
+    --green: #10B981;
+    --purple: #8B5CF6;
+    --amber: #F59E0B;
+    --red: #EF4444;
+    --font-display: 'Instrument Sans', system-ui, sans-serif;
+    --font-body: 'DM Sans', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-body);
+    background: linear-gradient(145deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, #0f172a 100%);
+    color: var(--text-primary);
+    min-height: 100vh;
+  }
+
+  /* ═══ LOGIN SCREEN ═══ */
+  #login-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    gap: 24px;
+  }
+  #login-screen .logo {
+    width: 64px; height: 64px; border-radius: 16px;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 22; color: #fff; font-family: var(--font-display);
+  }
+  #login-screen h1 { font-family: var(--font-display); font-size: 24px; font-weight: 700; }
+  #login-screen p { color: var(--text-muted); font-size: 14px; }
+  #login-btn {
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    border: none; color: #fff; padding: 12px 32px; border-radius: 10px;
+    font-size: 14px; font-weight: 600; cursor: pointer; font-family: var(--font-body);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  #login-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(59,130,246,0.3); }
+  #login-error { color: var(--red); font-size: 12px; display: none; max-width: 400px; text-align: center; }
+
+  /* ═══ LOADING ═══ */
+  #loading-screen {
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh; gap: 16px;
+  }
+  .spinner {
+    width: 40px; height: 40px; border: 3px solid var(--border);
+    border-top-color: var(--blue); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ═══ DASHBOARD ═══ */
+  #dashboard { display: none; }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,41,59,0.9));
+    border-bottom: 1px solid var(--border);
+    padding: 14px 28px;
+    display: flex; justify-content: space-between; align-items: center;
+    backdrop-filter: blur(20px);
+  }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .header-logo {
+    width: 38px; height: 38px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; color: #fff; font-family: var(--font-display);
+  }
+  .header-title { font-family: var(--font-display); font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+  .header-subtitle { font-size: 11px; color: var(--text-muted); }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .header-time { text-align: right; }
+  .header-time .date { font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); }
+  .header-time .status { font-size: 10px; color: #334155; font-family: var(--font-mono); }
+  .header-time .status .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--green); margin-right: 4px; }
+
+  /* Tabs */
+  .tabs {
+    display: flex; gap: 2px; background: rgba(255,255,255,0.05);
+    border-radius: 8px; padding: 3px;
+  }
+  .tab-btn {
+    background: transparent; border: 1px solid transparent;
+    color: var(--text-muted); padding: 6px 14px; border-radius: 6px;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    text-transform: capitalize; font-family: var(--font-body); transition: all 0.2s;
+  }
+  .tab-btn.active {
+    background: rgba(59,130,246,0.2); border-color: rgba(59,130,246,0.3); color: #60a5fa;
+  }
+
+  /* Refresh Button */
+  .refresh-btn {
+    background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+    color: var(--text-muted); padding: 6px 12px; border-radius: 6px;
+    font-size: 11px; cursor: pointer; font-family: var(--font-body);
+    transition: all 0.2s; display: flex; align-items: center; gap: 4px;
+  }
+  .refresh-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-secondary); }
+  .refresh-btn.loading { opacity: 0.5; pointer-events: none; }
+
+  /* Content */
+  .content { padding: 20px 28px; max-width: 1440px; margin: 0 auto; }
+
+  /* KPI Cards */
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 20px; }
+  .kpi-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px; position: relative; overflow: hidden;
+  }
+  .kpi-card .accent { position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .kpi-card .label {
+    font-size: 11px; color: var(--text-muted); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .kpi-card .value {
+    font-size: 24px; font-weight: 700; color: var(--text-primary);
+    font-family: var(--font-mono); letter-spacing: -1px; margin: 6px 0 2px;
+  }
+  .kpi-card .sub { font-size: 11px; color: var(--text-dim); }
+  .kpi-card .icon { position: absolute; top: 16px; right: 16px; font-size: 20px; opacity: 0.5; }
+
+  /* Contract Progress */
+  .contract-bar {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 20px; margin-bottom: 20px;
+  }
+  .contract-bar .top { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .contract-bar .top .left { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+  .contract-bar .top .right { font-size: 12px; font-weight: 700; color: var(--amber); font-family: var(--font-mono); }
+  .progress-track { height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--amber), var(--red)); border-radius: 4px; transition: width 1s ease; }
+  .contract-bar .months { display: flex; justify-content: space-between; margin-top: 6px; }
+  .contract-bar .months span { font-size: 10px; color: var(--text-dim); font-family: var(--font-mono); }
+
+  /* Chart Cards */
+  .chart-grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 20px; }
+  .chart-grid-eq { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+  .chart-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px;
+  }
+  .chart-card h3 { font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 16px; }
+
+  /* Locations Tab */
+  .filter-pills { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filter-pill {
+    padding: 6px 14px; border-radius: 20px; font-size: 12px;
+    font-weight: 600; cursor: pointer; font-family: var(--font-body);
+    transition: all 0.2s; border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text-muted);
+  }
+  .filter-pill.active { border-color: currentColor; }
+
+  .status-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
+  .status-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 18px;
+  }
+  .status-card .top { display: flex; justify-content: space-between; align-items: center; }
+  .status-card .label { font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+  .status-card .count { font-size: 20px; font-weight: 700; font-family: var(--font-mono); }
+  .status-card .bar { height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+  .status-card .bar-fill { height: 100%; border-radius: 2px; }
+  .status-card .pct { font-size: 10px; color: var(--text-dim); font-family: var(--font-mono); }
+
+  /* Location Table */
+  .loc-table {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+  }
+  .loc-table .thead {
+    display: grid; grid-template-columns: 2fr 1fr 0.7fr 0.7fr 0.7fr;
+    padding: 10px 16px; background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px; font-weight: 600; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .loc-table .tbody { max-height: 440px; overflow-y: auto; }
+  .loc-table .trow {
+    display: grid; grid-template-columns: 2fr 1fr 0.7fr 0.7fr 0.7fr;
+    padding: 8px 16px; border-bottom: 1px solid rgba(255,255,255,0.03);
+    align-items: center; transition: background 0.15s;
+  }
+  .loc-table .trow:hover { background: rgba(255,255,255,0.03); }
+  .loc-table .loc-name { font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .loc-table .loc-group { font-size: 11px; font-weight: 600; }
+  .loc-table .loc-num { font-size: 12px; font-weight: 600; font-family: var(--font-mono); text-align: right; }
+  .status-badge {
+    font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px;
+    display: inline-block; text-align: center;
+  }
+
+  /* Billing Table */
+  .billing-table {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+  }
+  .billing-table .title { padding: 14px 20px; border-bottom: 1px solid var(--border); }
+  .billing-table .title h3 { font-size: 14px; font-weight: 600; color: var(--text-secondary); }
+  .billing-table .brow {
+    display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+    padding: 10px 20px; font-family: var(--font-mono); font-size: 12px;
+  }
+  .billing-table .brow.header {
+    background: rgba(255,255,255,0.03); font-family: var(--font-body);
+    font-size: 11px; font-weight: 600; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .billing-table .brow + .brow { border-top: 1px solid rgba(255,255,255,0.03); }
+  .billing-table .brow.total-row { background: rgba(255,255,255,0.05); font-weight: 700; }
+
+  /* Group Legend */
+  .group-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+  .group-legend-item { display: flex; align-items: center; gap: 6px; }
+  .group-legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+  .group-legend-name { font-size: 10px; color: var(--text-secondary); }
+
+  .text-right { text-align: right; }
+  .text-center { text-align: center; }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  @media (max-width: 768px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .chart-grid-2, .chart-grid-eq { grid-template-columns: 1fr; }
+    .status-grid { grid-template-columns: 1fr; }
+    .header { flex-direction: column; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN SCREEN ═══ -->
+<div id="login-screen">
+  <div class="logo">CIT</div>
+  <h1>CIT Operations Dashboard</h1>
+  <p>Sign in with your ATM-UP Microsoft account</p>
+  <button id="login-btn" onclick="signIn()">Sign in with Microsoft</button>
+  <div id="login-error"></div>
+</div>
+
+<!-- ═══ LOADING SCREEN ═══ -->
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <p style="color: var(--text-muted); font-size: 13px;">Loading dashboard data...</p>
+</div>
+
+<!-- ═══ DASHBOARD ═══ -->
+<div id="dashboard">
+  <div class="header">
+    <div class="header-left">
+      <div class="header-logo">CIT</div>
+      <div>
+        <div class="header-title">Cash-In-Transit Operations</div>
+        <div class="header-subtitle">Broward County · ATM Universal Processors</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
+        <button class="tab-btn" onclick="switchTab('locations')">Locations</button>
+        <button class="tab-btn" onclick="switchTab('billing')">Billing</button>
+      </div>
+      <button class="refresh-btn" onclick="refreshData()" id="refresh-btn">↻ Refresh</button>
+      <div class="header-time">
+        <div class="date" id="header-date"></div>
+        <div class="status"><span class="dot"></span>Live · <span id="last-sync"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- OVERVIEW TAB -->
+    <div id="tab-overview" class="tab-content active">
+      <div class="kpi-grid" id="kpi-cards"></div>
+      <div class="contract-bar" id="contract-bar"></div>
+      <div class="chart-grid-2">
+        <div class="chart-card"><h3>Monthly Revenue Trend</h3><canvas id="chart-revenue" height="220"></canvas></div>
+        <div class="chart-card"><h3>Revenue by Group</h3><canvas id="chart-pie" height="200"></canvas><div class="group-legend" id="pie-legend"></div></div>
+      </div>
+      <div class="chart-grid-eq">
+        <div class="chart-card"><h3 id="daily-title">Daily Pickup Completion Rate</h3><canvas id="chart-daily" height="200"></canvas></div>
+        <div class="chart-card"><h3>Revenue by Group (Monthly)</h3><canvas id="chart-stacked" height="200"></canvas></div>
+      </div>
+    </div>
+
+    <!-- LOCATIONS TAB -->
+    <div id="tab-locations" class="tab-content">
+      <div class="filter-pills" id="filter-pills"></div>
+      <div class="status-grid" id="status-cards"></div>
+      <div class="loc-table">
+        <div class="thead">
+          <span>Location</span><span>Group</span><span class="text-right">All-Time</span><span class="text-right">MTD</span><span class="text-center">Status</span>
+        </div>
+        <div class="tbody" id="loc-tbody"></div>
+      </div>
+    </div>
+
+    <!-- BILLING TAB -->
+    <div id="tab-billing" class="tab-content">
+      <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);" id="billing-kpis"></div>
+      <div class="billing-table" id="billing-table"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIGURATION — UPDATE THESE VALUES
+// ═══════════════════════════════════════════════════════════
+
+const CONFIG = {
+  // Azure AD App Registration
+  clientId: "YOUR_CLIENT_ID_HERE",        // From Azure AD app registration
+  tenantId: "YOUR_TENANT_ID_HERE",        // Your M365 tenant ID
+  
+  // SharePoint Site & File
+  siteHost: "atmup.sharepoint.com",
+  sitePath: "/sites/OperationsDashboards",
+  filePath: "/Invoicing Workbooks/CIT_Broward_County_Invoicing1_06.xlsm",
+  
+  // Contract
+  contractTotal: 394000,
+  ratePerPickup: 18.50,
+};
+
+// MSAL Configuration
+const msalConfig = {
+  auth: {
+    clientId: CONFIG.clientId,
+    authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
+    redirectUri: window.location.origin + window.location.pathname,
+  },
+  cache: { cacheLocation: "sessionStorage" }
+};
+
+const graphScopes = ["Files.Read", "Sites.Read.All"];
+let msalInstance = null;
+let accessToken = null;
+let siteId = null;
+let driveId = null;
+let fileItemId = null;
+
+// Dashboard state
+let dashboardData = {
+  monthlyTracking: [],
+  groupBreakdown: { agencies: {}, tax: {}, parks: {}, libraries: {}, total: {} },
+  allTimeLocations: [],
+  mtdLocations: [],
+  dailyData: [],
+  currentMonth: "",
+  allTimeAmount: 0,
+};
+
+// ═══════════════════════════════════════════════════════════
+// AUTHENTICATION
+// ═══════════════════════════════════════════════════════════
+
+async function initMsal() {
+  msalInstance = new msal.PublicClientApplication(msalConfig);
+  await msalInstance.initialize();
+  
+  // Check if returning from redirect
+  const response = await msalInstance.handleRedirectPromise();
+  if (response) {
+    accessToken = response.accessToken;
+    await loadDashboard();
+    return;
+  }
+
+  // Check for existing session
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) {
+    try {
+      const tokenResponse = await msalInstance.acquireTokenSilent({
+        scopes: graphScopes,
+        account: accounts[0]
+      });
+      accessToken = tokenResponse.accessToken;
+      await loadDashboard();
+    } catch (e) {
+      showLogin();
+    }
+  } else {
+    showLogin();
+  }
+}
+
+async function signIn() {
+  try {
+    document.getElementById('login-error').style.display = 'none';
+    const response = await msalInstance.loginPopup({ scopes: graphScopes });
+    accessToken = response.accessToken;
+    await loadDashboard();
+  } catch (e) {
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = `Sign-in failed: ${e.message}. Make sure your Azure AD app is configured correctly.`;
+    errEl.style.display = 'block';
+    console.error("Login error:", e);
+  }
+}
+
+function showLogin() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════
+// GRAPH API CALLS
+// ═══════════════════════════════════════════════════════════
+
+async function graphGet(url) {
+  const resp = await fetch(url, {
+    headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" }
+  });
+  if (!resp.ok) throw new Error(`Graph API error: ${resp.status} ${resp.statusText}`);
+  return resp.json();
+}
+
+async function resolveFileIds() {
+  // Get Site ID
+  const site = await graphGet(
+    `https://graph.microsoft.com/v1.0/sites/${CONFIG.siteHost}:${CONFIG.sitePath}`
+  );
+  siteId = site.id;
+
+  // Get Drive ID (Documents library)
+  const drives = await graphGet(
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/drives`
+  );
+  const docLib = drives.value.find(d => d.name === "Documents" || d.name === "Shared Documents");
+  driveId = docLib.id;
+
+  // Get File Item ID
+  const file = await graphGet(
+    `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${CONFIG.filePath}`
+  );
+  fileItemId = file.id;
+}
+
+async function readExcelRange(worksheet, address) {
+  const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileItemId}/workbook/worksheets('${encodeURIComponent(worksheet)}')/range(address='${address}')`;
+  const data = await graphGet(url);
+  return data.values;
+}
+
+// ═══════════════════════════════════════════════════════════
+// DATA LOADING
+// ═══════════════════════════════════════════════════════════
+
+async function loadDashboard() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('loading-screen').style.display = 'flex';
+  
+  try {
+    await resolveFileIds();
+    await fetchAllData();
+    
+    document.getElementById('loading-screen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    
+    renderDashboard();
+    updateHeaderTime();
+  } catch (e) {
+    console.error("Load error:", e);
+    document.getElementById('loading-screen').style.display = 'none';
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = `Failed to load data: ${e.message}`;
+    errEl.style.display = 'block';
+    showLogin();
+  }
+}
+
+async function fetchAllData() {
+  // 1. Monthly tracking: Dashboard M8:T12 (rows 8-12, columns M-T)
+  const monthlyRaw = await readExcelRange("Dashboard", "M7:T12");
+  
+  // 2. Group breakdown (MTD): Dashboard A7:G12
+  const groupRaw = await readExcelRange("Dashboard", "A7:G12");
+  
+  // 3. All-time location status: Dashboard I7:K90
+  const allTimeRaw = await readExcelRange("Dashboard", "I7:K90");
+  
+  // 4. MTD location detail: Dashboard A14:G95
+  const mtdLocRaw = await readExcelRange("Dashboard", "A14:G95");
+
+  // 5. All-time amount: Dashboard I4
+  const allTimeAmtRaw = await readExcelRange("Dashboard", "I4:I4");
+
+  // 6. MTD pickups & amount: Dashboard A4:F4
+  const mtdSummaryRaw = await readExcelRange("Dashboard", "A3:G4");
+
+  // Parse monthly tracking
+  dashboardData.monthlyTracking = [];
+  const MONTH_NAMES = { 1: "JAN", 2: "FEB", 3: "MAR", 4: "APR", 5: "MAY", 6: "JUN", 7: "JUL", 8: "AUG", 9: "SEP", 10: "OCT", 11: "NOV", 12: "DEC" };
+  
+  for (let i = 1; i < monthlyRaw.length; i++) { // skip header row
+    const row = monthlyRaw[i];
+    if (!row[0] || row[0] === "GRAND TOTAL") continue;
+    
+    let monthLabel = "";
+    let monthDate = null;
+    
+    // row[0] is the date (could be serial number or string)
+    if (typeof row[0] === "number" && row[0] > 40000) {
+      // Excel serial date
+      monthDate = new Date((row[0] - 25569) * 86400000);
+      monthLabel = MONTH_NAMES[monthDate.getMonth() + 1] + " " + String(monthDate.getFullYear()).slice(2);
+    } else if (typeof row[0] === "string") {
+      monthLabel = row[0];
+    }
+
+    dashboardData.monthlyTracking.push({
+      label: monthLabel,
+      date: monthDate,
+      pickups: parseNum(row[1]),
+      agencies: parseNum(row[2]),
+      tax: parseNum(row[3]),
+      parks: parseNum(row[4]),
+      libraries: parseNum(row[5]),
+      rate: parseNum(row[6]),
+      total: parseNum(row[7]),
+    });
+  }
+
+  // Parse group breakdown (MTD)
+  const groupLabels = ["agencies", "tax", "parks", "libraries", "total"];
+  for (let i = 1; i < groupRaw.length; i++) {
+    const row = groupRaw[i];
+    const key = groupLabels[i - 1] || "unknown";
+    dashboardData.groupBreakdown[key] = {
+      name: row[0],
+      pickups: parseNum(row[1]),
+      pd: parseNum(row[2]),
+      p2d: parseNum(row[3]),
+      totalSvc: parseNum(row[4]),
+      amount: parseNum(row[5]),
+      avgDay: parseNum(row[6]),
+    };
+  }
+
+  // Parse all-time locations
+  dashboardData.allTimeLocations = [];
+  for (let i = 1; i < allTimeRaw.length; i++) {
+    const row = allTimeRaw[i];
+    if (!row[0] || String(row[0]).trim() === "") continue;
+    dashboardData.allTimeLocations.push({
+      name: String(row[0]).trim(),
+      totalSvc: parseNum(row[1]),
+      amount: parseNum(row[2]),
+    });
+  }
+
+  // Parse MTD locations
+  dashboardData.mtdLocations = [];
+  for (let i = 1; i < mtdLocRaw.length; i++) {
+    const row = mtdLocRaw[i];
+    if (!row[0] || String(row[0]).trim() === "" || String(row[0]).includes("SUBTOTAL") || String(row[0]).includes("DETAILED")) continue;
+    if (String(row[0]).includes("LOCATION")) continue; // header
+    dashboardData.mtdLocations.push({
+      name: String(row[0]).trim(),
+      pickups: parseNum(row[1]),
+      pd: parseNum(row[2]),
+      p2d: parseNum(row[3]),
+      totalSvc: parseNum(row[4]),
+      amount: parseNum(row[5]),
+      group: String(row[6] || "").trim(),
+    });
+  }
+
+  // All-time amount
+  dashboardData.allTimeAmount = parseNum(allTimeAmtRaw[0][0]);
+
+  // MTD summary
+  dashboardData.mtdPickups = parseNum(mtdSummaryRaw[1][0]);
+  dashboardData.mtdPD = parseNum(mtdSummaryRaw[1][2]);
+  dashboardData.mtdAmount = parseNum(mtdSummaryRaw[1][4]);
+
+  // Detect current month
+  if (dashboardData.monthlyTracking.length > 0) {
+    const last = dashboardData.monthlyTracking[dashboardData.monthlyTracking.length - 1];
+    dashboardData.currentMonth = last.label;
+  }
+}
+
+function parseNum(v) {
+  if (v === null || v === undefined || v === "") return 0;
+  const n = Number(v);
+  return isNaN(n) ? 0 : n;
+}
+
+async function refreshData() {
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('loading');
+  btn.textContent = '↻ Loading...';
+  try {
+    await fetchAllData();
+    renderDashboard();
+    updateHeaderTime();
+  } catch (e) {
+    console.error("Refresh error:", e);
+  }
+  btn.classList.remove('loading');
+  btn.textContent = '↻ Refresh';
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════════════════════════
+
+let charts = {};
+
+function renderDashboard() {
+  renderOverview();
+  renderLocations();
+  renderBilling();
+}
+
+function renderOverview() {
+  const d = dashboardData;
+  const monthly = d.monthlyTracking;
+  const allTimeTotal = d.allTimeAmount;
+  const allTimePickups = monthly.reduce((s, m) => s + m.pickups, 0);
+  const currentMonth = monthly[monthly.length - 1] || {};
+  const contractProgress = (allTimeTotal / CONFIG.contractTotal * 100);
+  
+  // Completion rate: use total MTD data
+  const totalGroup = d.groupBreakdown.total || {};
+  const totalLocations = 80;
+  const lastDayPickups = totalGroup.totalSvc || d.mtdPickups || 0;
+  const currentDays = currentMonth.date ? new Date().getDate() : 1;
+  const avgDailyPickups = currentDays > 0 ? Math.round(lastDayPickups / Math.max(currentDays - 1, 1)) : 0;
+  const completionRate = totalLocations > 0 ? ((avgDailyPickups / totalLocations) * 100) : 0;
+
+  // KPI Cards
+  document.getElementById('kpi-cards').innerHTML = `
+    ${kpiCardHTML("MTD Pickups", (d.mtdPickups || currentMonth.pickups || 0).toLocaleString(), d.currentMonth, "#3B82F6", "📦")}
+    ${kpiCardHTML("MTD Revenue", "$" + (d.mtdAmount || currentMonth.total || 0).toLocaleString(), `${currentDays} business days`, "#10B981", "💰")}
+    ${kpiCardHTML("All-Time Revenue", "$" + allTimeTotal.toLocaleString(), allTimePickups.toLocaleString() + " total pickups", "#8B5CF6", "📊")}
+    ${kpiCardHTML("Avg Pickups/Day", avgDailyPickups.toString(), `of ${totalLocations} locations`, completionRate >= 70 ? "#10B981" : completionRate >= 50 ? "#F59E0B" : "#EF4444", "✅")}
+    ${kpiCardHTML("Contract Progress", contractProgress.toFixed(1) + "%", "$" + (CONFIG.contractTotal - allTimeTotal).toLocaleString() + " remaining", "#F59E0B", "📋")}
+  `;
+
+  // Contract Progress Bar
+  document.getElementById('contract-bar').innerHTML = `
+    <div class="top">
+      <span class="left">Annual Contract: $${CONFIG.contractTotal.toLocaleString()}.00</span>
+      <span class="right">$${allTimeTotal.toLocaleString()} billed</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" style="width: ${Math.min(contractProgress, 100)}%"></div></div>
+    <div class="months">${monthly.map(m => `<span>${m.label}: $${m.total.toLocaleString()}</span>`).join('')}</div>
+  `;
+
+  // Charts
+  renderRevenueChart(monthly);
+  renderPieChart();
+  renderDailyChart(monthly, currentMonth);
+  renderStackedChart(monthly);
+}
+
+function renderRevenueChart(monthly) {
+  if (charts.revenue) charts.revenue.destroy();
+  const ctx = document.getElementById('chart-revenue').getContext('2d');
+  charts.revenue = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: monthly.map(m => m.label),
+      datasets: [{
+        label: 'Total $',
+        data: monthly.map(m => m.total),
+        borderColor: '#3B82F6',
+        backgroundColor: 'rgba(59,130,246,0.15)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 5,
+        pointBackgroundColor: '#3B82F6',
+        borderWidth: 2.5,
+      }]
+    },
+    options: chartOptions({ y: { ticks: { callback: v => '$' + (v / 1000).toFixed(0) + 'k' } } })
+  });
+}
+
+function renderPieChart() {
+  if (charts.pie) charts.pie.destroy();
+  const groups = [
+    { name: "Agencies", total: dashboardData.monthlyTracking.reduce((s, m) => s + m.agencies, 0), color: "#3B82F6" },
+    { name: "Tax Collectors", total: dashboardData.monthlyTracking.reduce((s, m) => s + m.tax, 0), color: "#F59E0B" },
+    { name: "Parks", total: dashboardData.monthlyTracking.reduce((s, m) => s + m.parks, 0), color: "#10B981" },
+    { name: "Libraries", total: dashboardData.monthlyTracking.reduce((s, m) => s + m.libraries, 0), color: "#8B5CF6" },
+  ];
+  
+  const ctx = document.getElementById('chart-pie').getContext('2d');
+  charts.pie = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: groups.map(g => g.name),
+      datasets: [{ data: groups.map(g => g.total), backgroundColor: groups.map(g => g.color), borderWidth: 0 }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.label + ': $' + c.parsed.toLocaleString() } } }, cutout: '55%' }
+  });
+
+  document.getElementById('pie-legend').innerHTML = groups.map(g =>
+    `<div class="group-legend-item"><div class="group-legend-dot" style="background:${g.color}"></div><span class="group-legend-name">${g.name}</span></div>`
+  ).join('');
+}
+
+function renderDailyChart(monthly, currentMonth) {
+  if (charts.daily) charts.daily.destroy();
+  
+  // We don't have daily granularity from the Dashboard sheet directly,
+  // so we show the monthly pickup counts as a bar chart
+  document.getElementById('daily-title').textContent = 'Monthly Pickup Count';
+  
+  const ctx = document.getElementById('chart-daily').getContext('2d');
+  charts.daily = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: monthly.map(m => m.label),
+      datasets: [{
+        label: 'Pickups',
+        data: monthly.map(m => m.pickups),
+        backgroundColor: '#10B981',
+        borderRadius: 4,
+      }]
+    },
+    options: chartOptions()
+  });
+}
+
+function renderStackedChart(monthly) {
+  if (charts.stacked) charts.stacked.destroy();
+  const ctx = document.getElementById('chart-stacked').getContext('2d');
+  charts.stacked = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: monthly.map(m => m.label),
+      datasets: [
+        { label: 'Agencies', data: monthly.map(m => m.agencies), backgroundColor: '#3B82F6', stack: 'a' },
+        { label: 'Tax Col.', data: monthly.map(m => m.tax), backgroundColor: '#F59E0B', stack: 'a' },
+        { label: 'Parks', data: monthly.map(m => m.parks), backgroundColor: '#10B981', stack: 'a' },
+        { label: 'Libraries', data: monthly.map(m => m.libraries), backgroundColor: '#8B5CF6', stack: 'a' },
+      ]
+    },
+    options: {
+      ...chartOptions({ y: { stacked: true, ticks: { callback: v => '$' + (v / 1000).toFixed(0) + 'k' } }, x: { stacked: true } }),
+      plugins: { legend: { display: true, labels: { color: '#64748b', font: { size: 10 } } } }
+    }
+  });
+}
+
+function chartOptions(scalesOverride) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b', font: { size: 10 } } },
+      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b', font: { size: 10 } }, ...(scalesOverride?.y || {}) },
+      ...(scalesOverride || {})
+    }
+  };
+}
+
+function renderLocations() {
+  const groupColors = { "AGENCIES": "#3B82F6", "TAX COLLECTORS": "#F59E0B", "PARKS": "#10B981", "LIBRARIES": "#8B5CF6" };
+  const locations = dashboardData.mtdLocations;
+  
+  // Merge MTD with all-time data
+  const merged = locations.map(loc => {
+    const allTime = dashboardData.allTimeLocations.find(a => a.name === loc.name.trim());
+    const totalSvc = loc.totalSvc + (allTime?.totalSvc || 0);
+    let status = "active";
+    if (totalSvc === 0) status = "inactive";
+    else if (loc.totalSvc === 0) status = "inactive";
+    else if (loc.pickups <= 1) status = "low";
+    return { ...loc, allTimeSvc: allTime?.totalSvc || 0, status };
+  });
+
+  // Filter pills
+  const groups = ["all", ...Object.keys(groupColors)];
+  document.getElementById('filter-pills').innerHTML = groups.map(g => {
+    const count = g === "all" ? merged.length : merged.filter(l => l.group === g).length;
+    const color = g === "all" ? "#64748b" : groupColors[g];
+    return `<button class="filter-pill ${g === 'all' ? 'active' : ''}" style="color:${color}" onclick="filterLocations('${g}', this)" data-group="${g}">${g === 'all' ? 'All' : g} (${count})</button>`;
+  }).join('');
+
+  // Status cards
+  const active = merged.filter(l => l.status === "active").length;
+  const low = merged.filter(l => l.status === "low").length;
+  const inactive = merged.filter(l => l.status === "inactive").length;
+  const total = merged.length;
+  document.getElementById('status-cards').innerHTML = `
+    ${statusCardHTML("Active", active, total, "#10B981")}
+    ${statusCardHTML("Low Activity", low, total, "#F59E0B")}
+    ${statusCardHTML("Inactive", inactive, total, "#EF4444")}
+  `;
+
+  // Store merged for filtering
+  window._mergedLocations = merged;
+  window._groupColors = groupColors;
+  renderLocationTable(merged);
+}
+
+function renderLocationTable(locations) {
+  const groupColors = window._groupColors;
+  document.getElementById('loc-tbody').innerHTML = locations.map(loc => {
+    const gc = groupColors[loc.group] || "#64748b";
+    const sc = loc.status === "active" ? "#10B981" : loc.status === "low" ? "#F59E0B" : "#EF4444";
+    const bg = loc.status === "active" ? "rgba(16,185,129,0.15)" : loc.status === "low" ? "rgba(245,158,11,0.15)" : "rgba(239,68,68,0.15)";
+    const label = loc.status === "active" ? "Active" : loc.status === "low" ? "Low" : "Inactive";
+    return `<div class="trow">
+      <span class="loc-name">${loc.name}</span>
+      <span class="loc-group" style="color:${gc}">${loc.group}</span>
+      <span class="loc-num" style="color:var(--text-secondary)">${loc.allTimeSvc}</span>
+      <span class="loc-num">${loc.totalSvc}</span>
+      <span class="text-center"><span class="status-badge" style="background:${bg};color:${sc}">${label}</span></span>
+    </div>`;
+  }).join('');
+}
+
+function filterLocations(group, el) {
+  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  const locations = window._mergedLocations;
+  const filtered = group === 'all' ? locations : locations.filter(l => l.group === group);
+  renderLocationTable(filtered);
+}
+
+function renderBilling() {
+  const monthly = dashboardData.monthlyTracking;
+  const allTimeTotal = dashboardData.allTimeAmount;
+  const contractProgress = (allTimeTotal / CONFIG.contractTotal * 100);
+  const allTimePickups = monthly.reduce((s, m) => s + m.pickups, 0);
+
+  document.getElementById('billing-kpis').innerHTML = `
+    ${kpiCardHTML("Contract Value", "$394,000", "Annual (Oct 2025 – Sep 2026)", "#F59E0B", "📋")}
+    ${kpiCardHTML("Billed to Date", "$" + allTimeTotal.toLocaleString(), contractProgress.toFixed(1) + "% of contract", "#10B981", "✅")}
+    ${kpiCardHTML("Rate Per Pickup", "$18.50", "Flat rate all services", "#3B82F6", "💵")}
+  `;
+
+  const totalAgencies = monthly.reduce((s, m) => s + m.agencies, 0);
+  const totalTax = monthly.reduce((s, m) => s + m.tax, 0);
+  const totalParks = monthly.reduce((s, m) => s + m.parks, 0);
+  const totalLibraries = monthly.reduce((s, m) => s + m.libraries, 0);
+
+  let tableHTML = `
+    <div class="title"><h3>Monthly Billing Summary</h3></div>
+    <div class="brow header">
+      <span>Month</span><span class="text-right">Pickups</span><span class="text-right">Agencies</span>
+      <span class="text-right">Tax Col.</span><span class="text-right">Parks</span>
+      <span class="text-right">Libraries</span><span class="text-right">Total</span>
+    </div>
+  `;
+
+  for (const m of monthly) {
+    tableHTML += `<div class="brow">
+      <span style="color:var(--text-primary);font-weight:600">${m.label}</span>
+      <span class="text-right" style="color:var(--text-secondary)">${m.pickups.toLocaleString()}</span>
+      <span class="text-right" style="color:#3B82F6">$${m.agencies.toLocaleString()}</span>
+      <span class="text-right" style="color:#F59E0B">$${m.tax.toLocaleString()}</span>
+      <span class="text-right" style="color:#10B981">$${m.parks.toLocaleString()}</span>
+      <span class="text-right" style="color:#8B5CF6">$${m.libraries.toLocaleString()}</span>
+      <span class="text-right" style="color:var(--text-primary);font-weight:700">$${m.total.toLocaleString()}</span>
+    </div>`;
+  }
+
+  tableHTML += `<div class="brow total-row">
+    <span style="color:var(--text-primary)">TOTAL</span>
+    <span class="text-right" style="color:var(--text-primary)">${allTimePickups.toLocaleString()}</span>
+    <span class="text-right" style="color:#3B82F6">$${totalAgencies.toLocaleString()}</span>
+    <span class="text-right" style="color:#F59E0B">$${totalTax.toLocaleString()}</span>
+    <span class="text-right" style="color:#10B981">$${totalParks.toLocaleString()}</span>
+    <span class="text-right" style="color:#8B5CF6">$${totalLibraries.toLocaleString()}</span>
+    <span class="text-right" style="color:#F59E0B">$${allTimeTotal.toLocaleString()}</span>
+  </div>`;
+
+  document.getElementById('billing-table').innerHTML = tableHTML;
+}
+
+// ═══ HTML HELPERS ═══
+
+function kpiCardHTML(label, value, sub, accent, icon) {
+  return `<div class="kpi-card">
+    <div class="accent" style="background:${accent}"></div>
+    <div class="icon">${icon}</div>
+    <div class="label">${label}</div>
+    <div class="value">${value}</div>
+    <div class="sub">${sub}</div>
+  </div>`;
+}
+
+function statusCardHTML(label, count, total, color) {
+  const pct = total > 0 ? Math.round(count / total * 100) : 0;
+  return `<div class="status-card">
+    <div class="top"><span class="label">${label}</span><span class="count" style="color:${color}">${count}</span></div>
+    <div class="bar"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
+    <span class="pct">${pct}% of locations</span>
+  </div>`;
+}
+
+// ═══ TAB SWITCHING ═══
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function updateHeaderTime() {
+  const now = new Date();
+  document.getElementById('header-date').textContent = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  document.getElementById('last-sync').textContent = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+}
+
+// ═══ INIT ═══
+window.addEventListener('load', initMsal);
+</script>
+</body>
+</html>
