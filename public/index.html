@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CIT Operations Dashboard | ATM Universal Processors</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.0/lib/msal-browser.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -167,6 +167,7 @@
     border-radius: 12px; padding: 20px;
   }
   .chart-card h3 { font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 16px; }
+  .chart-container { position: relative; height: 220px; width: 100%; }
 
   /* Locations Tab */
   .filter-pills { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -310,12 +311,12 @@
       <div class="kpi-grid" id="kpi-cards"></div>
       <div class="contract-bar" id="contract-bar"></div>
       <div class="chart-grid-2">
-        <div class="chart-card"><h3>Monthly Revenue Trend</h3><canvas id="chart-revenue" height="220"></canvas></div>
-        <div class="chart-card"><h3>Revenue by Group</h3><canvas id="chart-pie" height="200"></canvas><div class="group-legend" id="pie-legend"></div></div>
+        <div class="chart-card"><h3>Monthly Revenue Trend</h3><div class="chart-container"><canvas id="chart-revenue"></canvas></div></div>
+        <div class="chart-card"><h3>Revenue by Group</h3><div class="chart-container" style="height:180px"><canvas id="chart-pie"></canvas></div><div class="group-legend" id="pie-legend"></div></div>
       </div>
       <div class="chart-grid-eq">
-        <div class="chart-card"><h3 id="daily-title">Daily Pickup Completion Rate</h3><canvas id="chart-daily" height="200"></canvas></div>
-        <div class="chart-card"><h3>Revenue by Group (Monthly)</h3><canvas id="chart-stacked" height="200"></canvas></div>
+        <div class="chart-card"><h3 id="daily-title">Daily Pickup Completion Rate</h3><div class="chart-container" style="height:200px"><canvas id="chart-daily"></canvas></div></div>
+        <div class="chart-card"><h3>Revenue by Group (Monthly)</h3><div class="chart-container" style="height:200px"><canvas id="chart-stacked"></canvas></div></div>
       </div>
     </div>
 
@@ -546,6 +547,13 @@ function loadDemoMode() {
 async function initMsal() {
   // If credentials not configured, just show login screen with demo option
   if (CONFIG.clientId.includes("YOUR_") || CONFIG.tenantId.includes("YOUR_")) {
+    showLogin();
+    return;
+  }
+
+  // Check if MSAL library loaded
+  if (typeof msal === 'undefined') {
+    console.warn("MSAL library not loaded. Showing login with demo option.");
     showLogin();
     return;
   }
