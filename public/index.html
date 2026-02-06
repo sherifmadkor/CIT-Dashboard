@@ -249,6 +249,40 @@
   .tab-content { display: none; }
   .tab-content.active { display: block; }
 
+  /* Driver Cards */
+  .driver-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px; position: relative; overflow: hidden;
+  }
+  .driver-card .accent { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .driver-card .driver-name { font-size: 16px; font-weight: 700; font-family: var(--font-display); margin-bottom: 12px; }
+  .driver-card .driver-route { font-size: 11px; color: var(--text-muted); font-weight: 600; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .driver-card .driver-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .driver-card .stat-item .stat-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.3px; }
+  .driver-card .stat-item .stat-value { font-size: 18px; font-weight: 700; font-family: var(--font-mono); letter-spacing: -0.5px; }
+  .driver-card .completion-bar { margin-top: 12px; }
+  .driver-card .completion-bar .bar-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-bottom: 4px; }
+  .driver-card .completion-bar .bar-track { height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+  .driver-card .completion-bar .bar-fill { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
+  .driver-rank { position: absolute; top: 14px; right: 16px; font-size: 22px; font-weight: 800; color: rgba(255,255,255,0.06); font-family: var(--font-mono); }
+
+  /* Issues table */
+  .issue-row {
+    display: grid; grid-template-columns: 80px 100px 1.5fr 1fr 2fr;
+    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 12px; align-items: center;
+  }
+  .issue-row.issue-header {
+    font-weight: 600; color: var(--text-muted); text-transform: uppercase;
+    font-size: 10px; letter-spacing: 0.5px; border-bottom: 1px solid var(--border);
+    padding-bottom: 10px; margin-bottom: 4px;
+  }
+  .issue-row .issue-badge {
+    font-size: 10px; padding: 2px 8px; border-radius: 10px;
+    display: inline-block; font-weight: 600;
+    background: rgba(239,68,68,0.12); color: var(--red);
+  }
+
   @media (max-width: 768px) {
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
     .chart-grid-2, .chart-grid-eq { grid-template-columns: 1fr; }
@@ -295,6 +329,7 @@
       <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
         <button class="tab-btn" onclick="switchTab('locations')">Locations</button>
+        <button class="tab-btn" onclick="switchTab('drivers')">Drivers</button>
         <button class="tab-btn" onclick="switchTab('billing')">Billing</button>
       </div>
       <button class="refresh-btn" onclick="refreshData()" id="refresh-btn">↻ Refresh</button>
@@ -329,6 +364,26 @@
           <span>Location</span><span>Group</span><span class="text-right">All-Time</span><span class="text-right">MTD</span><span class="text-center">Status</span>
         </div>
         <div class="tbody" id="loc-tbody"></div>
+      </div>
+    </div>
+
+    <!-- DRIVERS TAB -->
+    <div id="tab-drivers" class="tab-content">
+      <!-- Driver Leaderboard Cards -->
+      <div id="driver-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:20px"></div>
+      <!-- Charts Row -->
+      <div class="chart-grid-eq">
+        <div class="chart-card"><h3>Monthly Completion Rate by Driver</h3><div class="chart-container" style="height:240px"><canvas id="chart-driver-trend"></canvas></div></div>
+        <div class="chart-card"><h3>Driver Comparison — Pickups vs Scheduled</h3><div class="chart-container" style="height:240px"><canvas id="chart-driver-compare"></canvas></div></div>
+      </div>
+      <div class="chart-grid-eq">
+        <div class="chart-card"><h3>Route Efficiency (Stops per Route)</h3><div class="chart-container" style="height:220px"><canvas id="chart-route-eff"></canvas></div></div>
+        <div class="chart-card"><h3>On-Time Performance Trend</h3><div class="chart-container" style="height:220px"><canvas id="chart-ontime"></canvas></div></div>
+      </div>
+      <!-- Recent Issues -->
+      <div class="chart-card" style="margin-top:0">
+        <h3>Recent Issues & Exceptions</h3>
+        <div id="issues-table"></div>
       </div>
     </div>
 
@@ -527,6 +582,38 @@ function loadDemoMode() {
       { name: "YOUNG AT ART LIBRARY", pickups: 2, pd: 0, p2d: 0, totalSvc: 2, amount: 37, group: "LIBRARIES" },
     ],
     dailyData: [],
+    driverLog: [
+      // OCT 2025 — monthly aggregates
+      { month: "OCT 25", driver: "Dave", route: "A", scheduled: 308, completed: 301, missed: 5, cancelled: 2, completionPct: 0.977, onTimePct: 0.96 },
+      { month: "OCT 25", driver: "Eugenio", route: "B", scheduled: 132, completed: 128, missed: 2, cancelled: 2, completionPct: 0.970, onTimePct: 0.94 },
+      { month: "OCT 25", driver: "Hunter", route: "C", scheduled: 198, completed: 195, missed: 2, cancelled: 1, completionPct: 0.985, onTimePct: 0.97 },
+      // NOV 2025
+      { month: "NOV 25", driver: "Dave", route: "A", scheduled: 330, completed: 326, missed: 3, cancelled: 1, completionPct: 0.988, onTimePct: 0.97 },
+      { month: "NOV 25", driver: "Eugenio", route: "B", scheduled: 165, completed: 160, missed: 3, cancelled: 2, completionPct: 0.970, onTimePct: 0.95 },
+      { month: "NOV 25", driver: "Hunter", route: "C", scheduled: 220, completed: 218, missed: 1, cancelled: 1, completionPct: 0.991, onTimePct: 0.98 },
+      // DEC 2025
+      { month: "DEC 25", driver: "Dave", route: "A", scheduled: 352, completed: 348, missed: 2, cancelled: 2, completionPct: 0.989, onTimePct: 0.97 },
+      { month: "DEC 25", driver: "Eugenio", route: "B", scheduled: 176, completed: 172, missed: 2, cancelled: 2, completionPct: 0.977, onTimePct: 0.95 },
+      { month: "DEC 25", driver: "Hunter", route: "C", scheduled: 242, completed: 240, missed: 1, cancelled: 1, completionPct: 0.992, onTimePct: 0.98 },
+      // JAN 2026
+      { month: "JAN 26", driver: "Dave", route: "A", scheduled: 322, completed: 318, missed: 3, cancelled: 1, completionPct: 0.988, onTimePct: 0.98 },
+      { month: "JAN 26", driver: "Eugenio", route: "B", scheduled: 161, completed: 155, missed: 4, cancelled: 2, completionPct: 0.963, onTimePct: 0.93 },
+      { month: "JAN 26", driver: "Hunter", route: "C", scheduled: 207, completed: 205, missed: 1, cancelled: 1, completionPct: 0.990, onTimePct: 0.99 },
+      // FEB 2026 (5 days)
+      { month: "FEB 26", driver: "Dave", route: "A", scheduled: 70, completed: 69, missed: 1, cancelled: 0, completionPct: 0.986, onTimePct: 0.97 },
+      { month: "FEB 26", driver: "Eugenio", route: "B", scheduled: 35, completed: 34, missed: 0, cancelled: 1, completionPct: 0.971, onTimePct: 0.94 },
+      { month: "FEB 26", driver: "Hunter", route: "C", scheduled: 45, completed: 45, missed: 0, cancelled: 0, completionPct: 1.0, onTimePct: 1.0 },
+    ],
+    issues: [
+      { date: "05/FEB", location: "CENTRAL BROWARD PARK & STADIUM", driver: "Dave", description: "Nothing for pick-up today according to Christina" },
+      { date: "04/FEB", location: "FERN FOREST NATURE CENTER", driver: "Dave", description: "Nothing for pick-up today according to Connie" },
+      { date: "03/FEB", location: "MASS TRANSIT- ADMINISTRATION OFFICE", driver: "Dave", description: "Office closed, no pickup available" },
+      { date: "02/FEB", location: "HOUSING FINANCE AND COMMUNITY REDEVELOPMENT DIVISION", driver: "Dave", description: "Building access restricted, security issue" },
+      { date: "01/FEB", location: "BRIAN PICCOLO PARK & VELODROME", driver: "Hunter", description: "Cash machine empty, nothing to collect" },
+      { date: "31/JAN", location: "SOLID WASTE AND RECYCLING", driver: "Eugenio", description: "Location closed for maintenance" },
+      { date: "30/JAN", location: "MASS TRANSIT CENTER- BCT BUS STATION (MLK)", driver: "Dave", description: "Equipment malfunction, rescheduled" },
+      { date: "29/JAN", location: "BUILDING CODES SERVICE DIVISION (BCSD)", driver: "Eugenio", description: "Staff unavailable, no pickup" },
+    ],
   };
 
   document.getElementById('login-screen').style.display = 'none';
@@ -794,6 +881,78 @@ async function fetchAllData() {
     const last = dashboardData.monthlyTracking[dashboardData.monthlyTracking.length - 1];
     dashboardData.currentMonth = last.label;
   }
+
+  // 7. Driver performance log: DRIVERS sheet A2:N500
+  try {
+    const driverRaw = await readExcelRange("DRIVERS", "A2:N500");
+    dashboardData.driverLog = [];
+    for (let i = 0; i < driverRaw.length; i++) {
+      const row = driverRaw[i];
+      if (!row[0] || String(row[0]).trim() === "") continue;
+      dashboardData.driverLog.push({
+        date: String(row[0]).trim(),
+        month: String(row[1]).trim(),
+        driver: String(row[2]).trim(),
+        route: String(row[3]).trim(),
+        scheduled: parseNum(row[4]),
+        completed: parseNum(row[5]),
+        missed: parseNum(row[6]),
+        cancelled: parseNum(row[7]),
+        completionPct: parseNum(row[8]),
+        onTimePct: parseNum(row[9]),
+      });
+    }
+
+    // Aggregate daily rows into monthly summaries for the dashboard
+    const monthDriverMap = {};
+    for (const entry of dashboardData.driverLog) {
+      const key = `${entry.month}|${entry.driver}`;
+      if (!monthDriverMap[key]) {
+        monthDriverMap[key] = { month: entry.month, driver: entry.driver, route: entry.route, scheduled: 0, completed: 0, missed: 0, cancelled: 0, completionPctSum: 0, onTimePctSum: 0, count: 0 };
+      }
+      monthDriverMap[key].scheduled += entry.scheduled;
+      monthDriverMap[key].completed += entry.completed;
+      monthDriverMap[key].missed += entry.missed;
+      monthDriverMap[key].cancelled += entry.cancelled;
+      monthDriverMap[key].completionPctSum += entry.completionPct;
+      monthDriverMap[key].onTimePctSum += entry.onTimePct;
+      monthDriverMap[key].count += 1;
+    }
+
+    dashboardData.driverLog = Object.values(monthDriverMap).map(m => ({
+      month: m.month,
+      driver: m.driver,
+      route: m.route,
+      scheduled: m.scheduled,
+      completed: m.completed,
+      missed: m.missed,
+      cancelled: m.cancelled,
+      completionPct: m.scheduled > 0 ? m.completed / m.scheduled : 0,
+      onTimePct: m.count > 0 ? m.onTimePctSum / m.count : 0,
+    }));
+  } catch (e) {
+    console.warn("DRIVERS sheet not found or empty:", e.message);
+    dashboardData.driverLog = [];
+  }
+
+  // 8. Issues log: ISSUES sheet A2:E200
+  try {
+    const issuesRaw = await readExcelRange("ISSUES", "A2:E200");
+    dashboardData.issues = [];
+    for (let i = 0; i < issuesRaw.length; i++) {
+      const row = issuesRaw[i];
+      if (!row[0] || String(row[0]).trim() === "") continue;
+      dashboardData.issues.push({
+        date: String(row[0]).trim(),
+        location: String(row[2] || "").trim(),
+        driver: String(row[3] || "").trim(),
+        description: String(row[4] || "").trim(),
+      });
+    }
+  } catch (e) {
+    console.warn("ISSUES sheet not found or empty:", e.message);
+    dashboardData.issues = [];
+  }
 }
 
 function parseNum(v) {
@@ -826,6 +985,7 @@ let charts = {};
 function renderDashboard() {
   renderOverview();
   renderLocations();
+  renderDrivers();
   renderBilling();
 }
 
@@ -1038,6 +1198,181 @@ function filterLocations(group, el) {
   const locations = window._mergedLocations;
   const filtered = group === 'all' ? locations : locations.filter(l => l.group === group);
   renderLocationTable(filtered);
+}
+
+// ═══ DRIVERS TAB ═══
+
+function renderDrivers() {
+  const d = dashboardData;
+  const log = d.driverLog || [];
+  const issues = d.issues || [];
+
+  if (log.length === 0) {
+    document.getElementById('driver-cards').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">No driver data available yet. Driver metrics will populate once KPI files are synced.</div>';
+    return;
+  }
+
+  // Aggregate per driver across all months
+  const driverNames = [...new Set(log.map(r => r.driver))];
+  const months = [...new Set(log.map(r => r.month))];
+  const driverColors = { "Dave": "#3B82F6", "Eugenio": "#F59E0B", "Hunter": "#10B981" };
+  const defaultColors = ["#8B5CF6", "#EF4444", "#06B6D4", "#F97316"];
+
+  const driverAgg = driverNames.map((name, i) => {
+    const rows = log.filter(r => r.driver === name);
+    const totalScheduled = rows.reduce((s, r) => s + r.scheduled, 0);
+    const totalCompleted = rows.reduce((s, r) => s + r.completed, 0);
+    const totalMissed = rows.reduce((s, r) => s + r.missed, 0);
+    const avgCompletion = totalScheduled > 0 ? totalCompleted / totalScheduled : 0;
+    const avgOnTime = rows.length > 0 ? rows.reduce((s, r) => s + r.onTimePct, 0) / rows.length : 0;
+    const route = rows[0]?.route || "?";
+    const color = driverColors[name] || defaultColors[i % defaultColors.length];
+    return { name, route, totalScheduled, totalCompleted, totalMissed, avgCompletion, avgOnTime, color, rows };
+  });
+
+  // Sort by completion rate descending
+  driverAgg.sort((a, b) => b.avgCompletion - a.avgCompletion);
+
+  // ═══ DRIVER LEADERBOARD CARDS ═══
+  document.getElementById('driver-cards').innerHTML = driverAgg.map((drv, rank) => {
+    const completionColor = drv.avgCompletion >= 0.98 ? '#10B981' : drv.avgCompletion >= 0.95 ? '#F59E0B' : '#EF4444';
+    const onTimeColor = drv.avgOnTime >= 0.97 ? '#10B981' : drv.avgOnTime >= 0.94 ? '#F59E0B' : '#EF4444';
+    const medal = rank === 0 ? '🥇' : rank === 1 ? '🥈' : rank === 2 ? '🥉' : '';
+    return `<div class="driver-card">
+      <div class="accent" style="background:${drv.color}"></div>
+      <div class="driver-rank">#${rank + 1}</div>
+      <div class="driver-name">${medal} ${drv.name}</div>
+      <div class="driver-route">Route ${drv.route} · ${months.length} months tracked</div>
+      <div class="driver-stats">
+        <div class="stat-item"><div class="stat-label">Total Pickups</div><div class="stat-value" style="color:${drv.color}">${drv.totalCompleted.toLocaleString()}</div></div>
+        <div class="stat-item"><div class="stat-label">Scheduled</div><div class="stat-value" style="color:var(--text-secondary)">${drv.totalScheduled.toLocaleString()}</div></div>
+        <div class="stat-item"><div class="stat-label">Completion</div><div class="stat-value" style="color:${completionColor}">${(drv.avgCompletion * 100).toFixed(1)}%</div></div>
+        <div class="stat-item"><div class="stat-label">On-Time</div><div class="stat-value" style="color:${onTimeColor}">${(drv.avgOnTime * 100).toFixed(1)}%</div></div>
+      </div>
+      <div class="completion-bar">
+        <div class="bar-label"><span>Completion Rate</span><span>${(drv.avgCompletion * 100).toFixed(1)}%</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(drv.avgCompletion * 100)}%;background:${completionColor}"></div></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // ═══ MONTHLY COMPLETION TREND CHART ═══
+  if (charts.driverTrend) charts.driverTrend.destroy();
+  charts.driverTrend = new Chart(document.getElementById('chart-driver-trend'), {
+    type: 'line',
+    data: {
+      labels: months,
+      datasets: driverAgg.map(drv => ({
+        label: drv.name,
+        data: months.map(m => {
+          const row = drv.rows.find(r => r.month === m);
+          return row ? +(row.completionPct * 100).toFixed(1) : null;
+        }),
+        borderColor: drv.color,
+        backgroundColor: drv.color + '20',
+        borderWidth: 2.5,
+        tension: 0.3,
+        pointRadius: 5,
+        pointBackgroundColor: drv.color,
+        fill: false,
+      }))
+    },
+    options: {
+      ...chartOptions({ y: { min: 90, max: 101, ticks: { callback: v => v + '%' } } }),
+      plugins: { legend: { display: true, labels: { color: '#64748b', font: { size: 11 }, usePointStyle: true, pointStyle: 'circle' } } }
+    }
+  });
+
+  // ═══ DRIVER COMPARISON CHART ═══
+  if (charts.driverCompare) charts.driverCompare.destroy();
+  charts.driverCompare = new Chart(document.getElementById('chart-driver-compare'), {
+    type: 'bar',
+    data: {
+      labels: driverAgg.map(d => d.name),
+      datasets: [
+        { label: 'Scheduled', data: driverAgg.map(d => d.totalScheduled), backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 4 },
+        { label: 'Completed', data: driverAgg.map(d => d.totalCompleted), backgroundColor: driverAgg.map(d => d.color), borderRadius: 4 },
+        { label: 'Missed', data: driverAgg.map(d => d.totalMissed), backgroundColor: '#EF4444', borderRadius: 4 },
+      ]
+    },
+    options: {
+      ...chartOptions(),
+      plugins: { legend: { display: true, labels: { color: '#64748b', font: { size: 10 } } } }
+    }
+  });
+
+  // ═══ ROUTE EFFICIENCY CHART ═══
+  if (charts.routeEff) charts.routeEff.destroy();
+  charts.routeEff = new Chart(document.getElementById('chart-route-eff'), {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: driverAgg.map(drv => ({
+        label: `Route ${drv.route} (${drv.name})`,
+        data: months.map(m => {
+          const row = drv.rows.find(r => r.month === m);
+          return row ? row.completed : 0;
+        }),
+        backgroundColor: drv.color + 'CC',
+        borderRadius: 4,
+      }))
+    },
+    options: {
+      ...chartOptions(),
+      plugins: { legend: { display: true, labels: { color: '#64748b', font: { size: 10 } } } }
+    }
+  });
+
+  // ═══ ON-TIME TREND CHART ═══
+  if (charts.ontime) charts.ontime.destroy();
+  charts.ontime = new Chart(document.getElementById('chart-ontime'), {
+    type: 'line',
+    data: {
+      labels: months,
+      datasets: driverAgg.map(drv => ({
+        label: drv.name,
+        data: months.map(m => {
+          const row = drv.rows.find(r => r.month === m);
+          return row ? +(row.onTimePct * 100).toFixed(1) : null;
+        }),
+        borderColor: drv.color,
+        borderWidth: 2,
+        borderDash: [5, 3],
+        tension: 0.3,
+        pointRadius: 4,
+        pointBackgroundColor: drv.color,
+        fill: false,
+      })),
+    },
+    options: {
+      ...chartOptions({ y: { min: 88, max: 101, ticks: { callback: v => v + '%' } } }),
+      plugins: {
+        legend: { display: true, labels: { color: '#64748b', font: { size: 11 }, usePointStyle: true, pointStyle: 'circle' } },
+        annotation: { annotations: { target: { type: 'line', yMin: 95, yMax: 95, borderColor: 'rgba(239,68,68,0.4)', borderDash: [6,3], borderWidth: 1, label: { display: true, content: 'Target 95%', position: 'start', color: '#EF4444', font: { size: 9 } } } } }
+      }
+    }
+  });
+
+  // ═══ ISSUES TABLE ═══
+  if (issues.length === 0) {
+    document.getElementById('issues-table').innerHTML = '<p style="color:var(--text-muted);font-size:13px;padding:12px 0">No issues recorded.</p>';
+    return;
+  }
+
+  document.getElementById('issues-table').innerHTML = `
+    <div class="issue-row issue-header">
+      <span>Date</span><span>Driver</span><span>Location</span><span>Status</span><span>Description</span>
+    </div>
+    ${issues.slice(0, 10).map(iss => `
+      <div class="issue-row">
+        <span style="font-family:var(--font-mono);color:var(--text-muted)">${iss.date}</span>
+        <span style="font-weight:600;color:${driverColors[iss.driver] || '#94a3b8'}">${iss.driver}</span>
+        <span style="color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${iss.location}">${iss.location}</span>
+        <span><span class="issue-badge">Exception</span></span>
+        <span style="color:var(--text-muted)">${iss.description}</span>
+      </div>
+    `).join('')}
+  `;
 }
 
 function renderBilling() {
