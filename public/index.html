@@ -264,6 +264,10 @@
   <h1>CIT Operations Dashboard</h1>
   <p>Sign in with your ATM-UP Microsoft account</p>
   <button id="login-btn" onclick="signIn()">Sign in with Microsoft</button>
+  <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
+    <span style="color:#334155;font-size:12px">— or —</span>
+  </div>
+  <button onclick="loadDemoMode()" style="background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-secondary);padding:10px 28px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-body);transition:all 0.2s">View Live Demo</button>
   <div id="login-error"></div>
 </div>
 
@@ -275,6 +279,9 @@
 
 <!-- ═══ DASHBOARD ═══ -->
 <div id="dashboard">
+  <div id="demo-banner" style="display:none;background:linear-gradient(90deg,rgba(245,158,11,0.15),rgba(245,158,11,0.05));border-bottom:1px solid rgba(245,158,11,0.3);padding:8px 28px;text-align:center;font-size:12px;color:#F59E0B;font-family:var(--font-body);font-weight:600">
+    ⚡ DEMO MODE — Showing sample data from Oct 2025 - Feb 2026 · <span style="font-weight:400;color:#94a3b8">Connect to SharePoint for live data</span>
+  </div>
   <div class="header">
     <div class="header-left">
       <div class="header-logo">CIT</div>
@@ -381,40 +388,209 @@ let dashboardData = {
 };
 
 // ═══════════════════════════════════════════════════════════
+// DEMO MODE
+// ═══════════════════════════════════════════════════════════
+
+let isDemoMode = false;
+
+function loadDemoMode() {
+  isDemoMode = true;
+  
+  dashboardData = {
+    mtdPickups: 268, mtdPD: 0, mtdAmount: 4958, allTimeAmount: 75125.5,
+    currentMonth: "FEB 26",
+    monthlyTracking: [
+      { label: "OCT 25", pickups: 750, agencies: 6123.5, tax: 555, parks: 2923, libraries: 4273.5, total: 13875, date: new Date(2025,9,1) },
+      { label: "NOV 25", pickups: 955, agencies: 7233.5, tax: 629, parks: 5032, libraries: 4773, total: 17667.5, date: new Date(2025,10,1) },
+      { label: "DEC 25", pickups: 1064, agencies: 8565.5, tax: 758.5, parks: 4588, libraries: 5772, total: 19684, date: new Date(2025,11,1) },
+      { label: "JAN 26", pickups: 1024, agencies: 7936.5, tax: 703, parks: 4828.5, libraries: 5476, total: 18944, date: new Date(2026,0,1) },
+      { label: "FEB 26", pickups: 268, agencies: 2035, tax: 185, parks: 1258, libraries: 1480, total: 4958, date: new Date(2026,1,1) },
+    ],
+    groupBreakdown: {
+      agencies: { name: "AGENCIES", pickups: 110, pd: 0, p2d: 0, totalSvc: 110, amount: 2035, avgDay: 22 },
+      tax: { name: "TAX COLLECTORS", pickups: 10, pd: 0, p2d: 0, totalSvc: 10, amount: 185, avgDay: 2 },
+      parks: { name: "PARKS", pickups: 68, pd: 0, p2d: 0, totalSvc: 68, amount: 1258, avgDay: 13.6 },
+      libraries: { name: "LIBRARIES", pickups: 80, pd: 0, p2d: 0, totalSvc: 80, amount: 1480, avgDay: 16 },
+      total: { name: "TOTAL", pickups: 268, pd: 0, p2d: 0, totalSvc: 268, amount: 4958, avgDay: 53.6 },
+    },
+    allTimeLocations: [
+      { name: "ANIMAL CARE & ADOPTION", totalSvc: 54, amount: 999 },
+      { name: "AVIATION DEPT. FINANCE DIVISION", totalSvc: 72, amount: 1332 },
+      { name: "GOVERNMENT CENTER WEST", totalSvc: 63, amount: 1165.5 },
+      { name: "HIGHWAY CONSTRUCTION AND ENGINEERING", totalSvc: 72, amount: 1332 },
+      { name: "FACILITIES MAINTENANCE - PARKING CASHIER (Govt Center)", totalSvc: 105, amount: 1942.5 },
+      { name: "FACILITIES MAINTENANCE - PARKING CASHIER (Midrise)", totalSvc: 63, amount: 1165.5 },
+      { name: "MASS TRANSIT- ADMINISTRATION OFFICE", totalSvc: 3, amount: 55.5 },
+      { name: "MASS TRANSIT- BROWARD CENTRAL TERMINAL (101 NW 1ST)", totalSvc: 72, amount: 1332 },
+      { name: "MASS TRANSIT COPANS", totalSvc: 72, amount: 1332 },
+      { name: "MASS TRANSIT LAUDERHILL", totalSvc: 72, amount: 1332 },
+      { name: "MASS TRANSIT CENTER- BCT BUS STATION (MLK)", totalSvc: 5, amount: 92.5 },
+      { name: "MASS TRANSIT RAVENSWOOD", totalSvc: 72, amount: 1332 },
+      { name: "WATER & WASTEWATER SERVICES - FORT LAUDERDALE", totalSvc: 63, amount: 1165.5 },
+      { name: "WATER & WASTEWATER SERVICES - POMPANO BEACH", totalSvc: 63, amount: 1165.5 },
+      { name: "SOLID WASTE AND RECYCLING", totalSvc: 4, amount: 74 },
+      { name: "SOLID WASTE AND RECYCLING (P/U OF SCALE HOUSE/LANDFILL)", totalSvc: 72, amount: 1332 },
+      { name: "PORT - HERON GARAGE", totalSvc: 63, amount: 1165.5 },
+      { name: "PORT EVERGLADES ADMINISTRATION BLDG", totalSvc: 63, amount: 1165.5 },
+      { name: "PORT EVERGLADES", totalSvc: 63, amount: 1165.5 },
+      { name: "RECORDS, TAXES AND TREASURY A-400", totalSvc: 72, amount: 1332 },
+      { name: "SP PLUS - FTL INTERNATIONAL AIRPORT", totalSvc: 105, amount: 1942.5 },
+      { name: "RECORDS, TAXES AND TREASURY - RECORDS", totalSvc: 36, amount: 666 },
+      { name: "HOUSING FINANCE AND COMMUNITY REDEVELOPMENT DIVISION", totalSvc: 7, amount: 129.5 },
+      { name: "BUILDING CODE SERVICE DIVISION (BCSD)- FORT LAUDERDALE", totalSvc: 63, amount: 1165.5 },
+      { name: "BUILDING CODES SERVICE DIVISION (BCSD)", totalSvc: 0, amount: 0 },
+      { name: "CHILD CARE LIC & ENFORCEMENT", totalSvc: 63, amount: 1165.5 },
+      { name: "TAX COLLECTOR - AUTO TAGS", totalSvc: 72, amount: 1332 },
+      { name: "TAX COLLECTOR - TAX COLLECTIONS", totalSvc: 72, amount: 1332 },
+    ],
+    mtdLocations: [
+      { name: "ANIMAL CARE & ADOPTION", pickups: 3, pd: 0, p2d: 0, totalSvc: 3, amount: 55.5, group: "AGENCIES" },
+      { name: "AVIATION DEPT. FINANCE DIVISION", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "GOVERNMENT CENTER WEST", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "HIGHWAY CONSTRUCTION AND ENGINEERING", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "FACILITIES MAINTENANCE - PARKING CASHIER (Govt Center)", pickups: 5, pd: 0, p2d: 0, totalSvc: 5, amount: 92.5, group: "AGENCIES" },
+      { name: "FACILITIES MAINTENANCE - PARKING CASHIER (Midrise)", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "MASS TRANSIT- ADMINISTRATION OFFICE", pickups: 0, pd: 0, p2d: 0, totalSvc: 0, amount: 0, group: "AGENCIES" },
+      { name: "MASS TRANSIT- BROWARD CENTRAL TERMINAL (101 NW 1ST)", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "MASS TRANSIT COPANS", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "MASS TRANSIT LAUDERHILL", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "MASS TRANSIT CENTER- BCT BUS STATION (MLK)", pickups: 0, pd: 0, p2d: 0, totalSvc: 0, amount: 0, group: "AGENCIES" },
+      { name: "MASS TRANSIT RAVENSWOOD", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "WATER & WASTEWATER SERVICES - FORT LAUDERDALE", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "WATER & WASTEWATER SERVICES - POMPANO BEACH", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "SOLID WASTE AND RECYCLING", pickups: 1, pd: 0, p2d: 0, totalSvc: 1, amount: 18.5, group: "AGENCIES" },
+      { name: "SOLID WASTE AND RECYCLING (P/U OF SCALE HOUSE/LANDFILL)", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "PORT - HERON GARAGE", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "PORT EVERGLADES ADMINISTRATION BLDG", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "PORT EVERGLADES", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "RECORDS, TAXES AND TREASURY A-400", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "SP PLUS - FTL INTERNATIONAL AIRPORT", pickups: 5, pd: 0, p2d: 0, totalSvc: 5, amount: 92.5, group: "AGENCIES" },
+      { name: "RECORDS, TAXES AND TREASURY - RECORDS", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "HOUSING FINANCE AND COMMUNITY REDEVELOPMENT DIVISION", pickups: 0, pd: 0, p2d: 0, totalSvc: 0, amount: 0, group: "AGENCIES" },
+      { name: "BUILDING CODE SERVICE DIVISION (BCSD)- FORT LAUDERDALE", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "BUILDING CODES SERVICE DIVISION (BCSD)", pickups: 0, pd: 0, p2d: 0, totalSvc: 0, amount: 0, group: "AGENCIES" },
+      { name: "CHILD CARE LIC & ENFORCEMENT", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "AGENCIES" },
+      { name: "TAX COLLECTOR - AUTO TAGS", pickups: 5, pd: 0, p2d: 0, totalSvc: 5, amount: 92.5, group: "TAX COLLECTORS" },
+      { name: "TAX COLLECTOR - TAX COLLECTIONS", pickups: 5, pd: 0, p2d: 0, totalSvc: 5, amount: 92.5, group: "TAX COLLECTORS" },
+      { name: "WEST LAKE PARK/ ANNE KOLB NATURE CENTER", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "PARKS" },
+      { name: "BRIAN PICCOLO PARK & VELODROME", pickups: 2, pd: 0, p2d: 0, totalSvc: 2, amount: 37, group: "PARKS" },
+      { name: "C.B. SMITH PARK", pickups: 5, pd: 0, p2d: 0, totalSvc: 5, amount: 92.5, group: "PARKS" },
+      { name: "CENTRAL BROWARD PARK & STADIUM", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "PARKS" },
+      { name: "EASTERLIN PARK", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "PARKS" },
+      { name: "FERN FOREST NATURE CENTER", pickups: 1, pd: 0, p2d: 0, totalSvc: 1, amount: 18.5, group: "PARKS" },
+      { name: "LONG KEY NATURAL AREA & NATURE CENTER", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "PARKS" },
+      { name: "MARKHAM PARK & TARGET RANGE", pickups: 5, pd: 0, p2d: 0, totalSvc: 5, amount: 92.5, group: "PARKS" },
+      { name: "MIRAMAR PINELAND", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "PARKS" },
+      { name: "PLANTATION HERITAGE PARK", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "PARKS" },
+      { name: "QUIET WATERS PARK", pickups: 5, pd: 0, p2d: 0, totalSvc: 5, amount: 92.5, group: "PARKS" },
+      { name: "SECRET WOODS NATURE CENTER", pickups: 1, pd: 0, p2d: 0, totalSvc: 1, amount: 18.5, group: "PARKS" },
+      { name: "TRADEWINDS PARK & STABLES", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "PARKS" },
+      { name: "TREE TOPS", pickups: 5, pd: 0, p2d: 0, totalSvc: 5, amount: 92.5, group: "PARKS" },
+      { name: "T.Y. (TOPEEKEEGEE YUGNEE) PARK", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "PARKS" },
+      { name: "VISTA VIEW PARK", pickups: 5, pd: 0, p2d: 0, totalSvc: 5, amount: 92.5, group: "PARKS" },
+      { name: "AFRICAN-AMERICAN RESEARCHLIBRARY AND CULTURAL CENTER", pickups: 2, pd: 0, p2d: 0, totalSvc: 2, amount: 37, group: "LIBRARIES" },
+      { name: "BEACH BRANCH", pickups: 1, pd: 0, p2d: 0, totalSvc: 1, amount: 18.5, group: "LIBRARIES" },
+      { name: "POMPANO BEACH BRANCH", pickups: 3, pd: 0, p2d: 0, totalSvc: 3, amount: 55.5, group: "LIBRARIES" },
+      { name: "TYRONE BRYANT BRANCH", pickups: 0, pd: 0, p2d: 0, totalSvc: 0, amount: 0, group: "LIBRARIES" },
+      { name: "CARVER RANCHES BRANCH", pickups: 1, pd: 0, p2d: 0, totalSvc: 1, amount: 18.5, group: "LIBRARIES" },
+      { name: "CENTURY PLAZA BRANCH", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "LIBRARIES" },
+      { name: "COLLIER CITY JAN MORAN LEARNING LIBRARY", pickups: 2, pd: 0, p2d: 0, totalSvc: 2, amount: 37, group: "LIBRARIES" },
+      { name: "DANIA BEACH PAUL DEMAIO BRANCH", pickups: 2, pd: 0, p2d: 0, totalSvc: 2, amount: 37, group: "LIBRARIES" },
+      { name: "DAVIE/COOPER CITY BRANCH", pickups: 2, pd: 0, p2d: 0, totalSvc: 2, amount: 37, group: "LIBRARIES" },
+      { name: "DEERFIELD BEACH PERCY WHITE BRANCH", pickups: 3, pd: 0, p2d: 0, totalSvc: 3, amount: 55.5, group: "LIBRARIES" },
+      { name: "FORT LAUDERDALE BRANCH", pickups: 2, pd: 0, p2d: 0, totalSvc: 2, amount: 37, group: "LIBRARIES" },
+      { name: "GALT OCEAN MILE READING CENTER", pickups: 1, pd: 0, p2d: 0, totalSvc: 1, amount: 18.5, group: "LIBRARIES" },
+      { name: "HALLANDALE BEACH BRANCH", pickups: 2, pd: 0, p2d: 0, totalSvc: 2, amount: 37, group: "LIBRARIES" },
+      { name: "HOLLYWOOD BEACH BERNICE P. OSTERREADING CENTER", pickups: 1, pd: 0, p2d: 0, totalSvc: 1, amount: 18.5, group: "LIBRARIES" },
+      { name: "HOLLYWOOD BRANCH", pickups: 2, pd: 0, p2d: 0, totalSvc: 2, amount: 37, group: "LIBRARIES" },
+      { name: "IMPERIAL POINT BRANCH", pickups: 3, pd: 0, p2d: 0, totalSvc: 3, amount: 55.5, group: "LIBRARIES" },
+      { name: "LAUDERDALE LAKES BRANCH", pickups: 2, pd: 0, p2d: 0, totalSvc: 2, amount: 37, group: "LIBRARIES" },
+      { name: "LAUDERHILL CENTRAL PARK BRANCH", pickups: 2, pd: 0, p2d: 0, totalSvc: 2, amount: 37, group: "LIBRARIES" },
+      { name: "LAUDERHILL TOWNE CENTRE BRANCH", pickups: 2, pd: 0, p2d: 0, totalSvc: 2, amount: 37, group: "LIBRARIES" },
+      { name: "MAIN LIBRARY", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "LIBRARIES" },
+      { name: "MARGATE CATHARINE YOUNG BRANCH", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "LIBRARIES" },
+      { name: "MIRAMAR BRANCH LIBRARY ANDCENTER", pickups: 3, pd: 0, p2d: 0, totalSvc: 3, amount: 55.5, group: "LIBRARIES" },
+      { name: "NORTH LAUDERDALE SARANIERO BRANCH", pickups: 3, pd: 0, p2d: 0, totalSvc: 3, amount: 55.5, group: "LIBRARIES" },
+      { name: "NORTH REGIONAL/BROWARD COLLEGE", pickups: 3, pd: 0, p2d: 0, totalSvc: 3, amount: 55.5, group: "LIBRARIES" },
+      { name: "NORTHWEST BRANCH", pickups: 1, pd: 0, p2d: 0, totalSvc: 1, amount: 18.5, group: "LIBRARIES" },
+      { name: "NORTHWEST REGIONAL LIBRARY", pickups: 3, pd: 0, p2d: 0, totalSvc: 3, amount: 55.5, group: "LIBRARIES" },
+      { name: "PEMBROKE PINES BRANCH/ WALTER C.RESOURCE CENTER", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "LIBRARIES" },
+      { name: "RIVERLAND BRANCH", pickups: 1, pd: 0, p2d: 0, totalSvc: 1, amount: 18.5, group: "LIBRARIES" },
+      { name: "SOUTH REGIONAL/BROWARD COLLEGE", pickups: 3, pd: 0, p2d: 0, totalSvc: 3, amount: 55.5, group: "LIBRARIES" },
+      { name: "SOUTHWEST REGIONAL LIBRARY", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "LIBRARIES" },
+      { name: "MARTA BETH FRIEDMAN STIRLING ROAD", pickups: 3, pd: 0, p2d: 0, totalSvc: 3, amount: 55.5, group: "LIBRARIES" },
+      { name: "SUNRISE DAN PEARL BRANCH", pickups: 3, pd: 0, p2d: 0, totalSvc: 3, amount: 55.5, group: "LIBRARIES" },
+      { name: "TAMARAC BRANCH", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "LIBRARIES" },
+      { name: "WEST REGIONAL LIBRARY", pickups: 4, pd: 0, p2d: 0, totalSvc: 4, amount: 74, group: "LIBRARIES" },
+      { name: "WESTON BRANCH", pickups: 2, pd: 0, p2d: 0, totalSvc: 2, amount: 37, group: "LIBRARIES" },
+      { name: "YOUNG AT ART LIBRARY", pickups: 2, pd: 0, p2d: 0, totalSvc: 2, amount: 37, group: "LIBRARIES" },
+    ],
+    dailyData: [],
+  };
+
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('demo-banner').style.display = 'block';
+  
+  renderDashboard();
+  updateHeaderTime();
+  document.getElementById('last-sync').textContent = 'Demo Mode';
+  document.querySelector('.header-time .status .dot').style.background = '#F59E0B';
+}
+
+// ═══════════════════════════════════════════════════════════
 // AUTHENTICATION
 // ═══════════════════════════════════════════════════════════
 
 async function initMsal() {
-  msalInstance = new msal.PublicClientApplication(msalConfig);
-  await msalInstance.initialize();
-  
-  // Check if returning from redirect
-  const response = await msalInstance.handleRedirectPromise();
-  if (response) {
-    accessToken = response.accessToken;
-    await loadDashboard();
+  // If credentials not configured, just show login screen with demo option
+  if (CONFIG.clientId.includes("YOUR_") || CONFIG.tenantId.includes("YOUR_")) {
+    showLogin();
     return;
   }
 
-  // Check for existing session
-  const accounts = msalInstance.getAllAccounts();
-  if (accounts.length > 0) {
-    try {
-      const tokenResponse = await msalInstance.acquireTokenSilent({
-        scopes: graphScopes,
-        account: accounts[0]
-      });
-      accessToken = tokenResponse.accessToken;
+  try {
+    msalInstance = new msal.PublicClientApplication(msalConfig);
+    await msalInstance.initialize();
+    
+    // Check if returning from redirect
+    const response = await msalInstance.handleRedirectPromise();
+    if (response) {
+      accessToken = response.accessToken;
       await loadDashboard();
-    } catch (e) {
+      return;
+    }
+
+    // Check for existing session
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length > 0) {
+      try {
+        const tokenResponse = await msalInstance.acquireTokenSilent({
+          scopes: graphScopes,
+          account: accounts[0]
+        });
+        accessToken = tokenResponse.accessToken;
+        await loadDashboard();
+      } catch (e) {
+        showLogin();
+      }
+    } else {
       showLogin();
     }
-  } else {
+  } catch (e) {
+    console.error("MSAL init error:", e);
     showLogin();
   }
 }
 
 async function signIn() {
+  if (!msalInstance) {
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = 'Azure AD not configured yet. Use "View Live Demo" to preview, or configure clientId and tenantId in the HTML file.';
+    errEl.style.display = 'block';
+    return;
+  }
   try {
     document.getElementById('login-error').style.display = 'none';
     const response = await msalInstance.loginPopup({ scopes: graphScopes });
@@ -422,7 +598,7 @@ async function signIn() {
     await loadDashboard();
   } catch (e) {
     const errEl = document.getElementById('login-error');
-    errEl.textContent = `Sign-in failed: ${e.message}. Make sure your Azure AD app is configured correctly.`;
+    errEl.textContent = `Sign-in failed: ${e.message}`;
     errEl.style.display = 'block';
     console.error("Login error:", e);
   }
