@@ -713,29 +713,72 @@ async function graphGet(url) {
   const resp = await fetch(url, {
     headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" }
   });
-  if (!resp.ok) throw new Error(`Graph API error: ${resp.status} ${resp.statusText}`);
+  if (!resp.ok) {
+    const errBody = await resp.text().catch(() => "");
+    throw new Error(`Graph API error: ${resp.status} — URL: ${url}\n${errBody}`);
+  }
   return resp.json();
 }
 
 async function resolveFileIds() {
-  // Get Site ID
-  const site = await graphGet(
-    `https://graph.microsoft.com/v1.0/sites/${CONFIG.siteHost}:${CONFIG.sitePath}`
-  );
-  siteId = site.id;
+  // Step 1: Get Site ID
+  console.log("Step 1: Resolving site...", `${CONFIG.siteHost}:${CONFIG.sitePath}`);
+  let site;
+  try {
+    site = await graphGet(
+      `https://graph.microsoft.com/v1.0/sites/${CONFIG.siteHost}:${CONFIG.sitePath}`
+    );
+    siteId = site.id;
+    console.log("✅ Site ID:", siteId);
+  } catch (e) {
+    throw new Error(`Step 1 FAILED — Cannot find SharePoint site "${CONFIG.sitePath}" on ${CONFIG.siteHost}.\n${e.message}`);
+  }
 
-  // Get Drive ID (Documents library)
-  const drives = await graphGet(
-    `https://graph.microsoft.com/v1.0/sites/${siteId}/drives`
+  // Step 2: Get Drive ID (Documents library)
+  console.log("Step 2: Resolving drives...");
+  let drives;
+  try {
+    drives = await graphGet(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/drives`
+    );
+    console.log("📁 Available drives:", drives.value.map(d => `"${d.name}" (${d.id})`).join(", "));
+  } catch (e) {
+    throw new Error(`Step 2 FAILED — Cannot list drives for site.\n${e.message}`);
+  }
+
+  const docLib = drives.value.find(d => 
+    d.name === "Documents" || d.name === "Shared Documents" || d.driveType === "documentLibrary"
   );
-  const docLib = drives.value.find(d => d.name === "Documents" || d.name === "Shared Documents");
+  if (!docLib) {
+    throw new Error(`Step 2 FAILED — No "Documents" library found. Available: ${drives.value.map(d => d.name).join(", ")}`);
+  }
   driveId = docLib.id;
+  console.log("✅ Drive ID:", driveId, `(${docLib.name})`);
 
-  // Get File Item ID
-  const file = await graphGet(
-    `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${CONFIG.filePath}`
-  );
-  fileItemId = file.id;
+  // Step 3: Get File Item ID
+  console.log("Step 3: Resolving file...", CONFIG.filePath);
+  let file;
+  try {
+    file = await graphGet(
+      `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${CONFIG.filePath}`
+    );
+    fileItemId = file.id;
+    console.log("✅ File ID:", fileItemId, `(${file.name})`);
+  } catch (e) {
+    // Try listing the folder to help debug
+    console.warn("File not found, listing parent folder...");
+    try {
+      const folderPath = CONFIG.filePath.substring(0, CONFIG.filePath.lastIndexOf("/"));
+      const folder = await graphGet(
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${folderPath}:/children`
+      );
+      const files = folder.value.map(f => f.name).join("\n  ");
+      throw new Error(`Step 3 FAILED — File not found: "${CONFIG.filePath}"\n\nFiles in "${folderPath}":\n  ${files}`);
+    } catch (e2) {
+      if (e2.message.includes("Step 3")) throw e2;
+      throw new Error(`Step 3 FAILED — File AND folder not found: "${CONFIG.filePath}"\n${e.message}`);
+    }
+  }
 }
 
 async function readExcelRange(worksheet, address) {
@@ -765,7 +808,11 @@ async function loadDashboard() {
     console.error("Load error:", e);
     document.getElementById('loading-screen').style.display = 'none';
     const errEl = document.getElementById('login-error');
-    errEl.textContent = `Failed to load data: ${e.message}`;
+    errEl.style.whiteSpace = 'pre-wrap';
+    errEl.style.textAlign = 'left';
+    errEl.style.maxWidth = '600px';
+    errEl.style.fontSize = '11px';
+    errEl.innerText = `Failed to load data:\n\n${e.message}`;
     errEl.style.display = 'block';
     showLogin();
   }
