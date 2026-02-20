@@ -359,6 +359,7 @@
       <div class="header-time">
         <div class="date" id="header-date"></div>
         <div class="status"><span class="dot"></span>Live · <span id="last-sync"></span></div>
+        <div class="date" id="data-as-of" style="color:var(--text-muted);margin-top:2px"></div>
       </div>
     </div>
   </div>
@@ -450,8 +451,8 @@ const CONFIG = {
 // MSAL Configuration
 const msalConfig = {
   auth: {
-    clientId: "6be66255-eba9-431c-b861-0c4969e73752",
-    authority: "https://login.microsoftonline.com/common",
+    clientId: CONFIG.clientId,
+    authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
     redirectUri: window.location.origin + window.location.pathname,
   },
   cache: { cacheLocation: "sessionStorage" }
@@ -474,6 +475,7 @@ let dashboardData = {
   routeLog: [],
   currentMonth: "",
   allTimeAmount: 0,
+  lastDataDate: null,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -488,6 +490,7 @@ function loadDemoMode() {
   dashboardData = {
     mtdPickups: 268, mtdPD: 0, mtdAmount: 4958, allTimeAmount: 75125.5,
     currentMonth: "FEB 26",
+    lastDataDate: new Date(2026, 1, 19),
     monthlyTracking: [
       { label: "OCT 25 Invoice", pickups: 750, agencies: 6123.5, tax: 555, parks: 2923, libraries: 4273.5, total: 13875, date: new Date(2025,9,1) },
       { label: "NOV 25 Invoice", pickups: 955, agencies: 7233.5, tax: 629, parks: 5032, libraries: 4773, total: 17667.5, date: new Date(2025,10,1) },
@@ -852,6 +855,33 @@ async function loadDashboard() {
 }
 
 async function fetchAllData() {
+  // 0. Get worksheet names to determine the latest data date
+  try {
+    const wsUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileItemId}/workbook/worksheets`;
+    const wsData = await graphGet(wsUrl);
+    const sheetNames = wsData.value.map(ws => ws.name);
+    console.log("📋 Worksheets:", sheetNames.join(", "));
+
+    // Find sheet names that are numeric (day numbers like "19", "20")
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-indexed
+    let maxDay = 0;
+    for (const name of sheetNames) {
+      const trimmed = name.trim();
+      const dayNum = parseInt(trimmed, 10);
+      if (!isNaN(dayNum) && dayNum >= 1 && dayNum <= 31 && String(dayNum) === trimmed) {
+        if (dayNum > maxDay) maxDay = dayNum;
+      }
+    }
+    if (maxDay > 0) {
+      dashboardData.lastDataDate = new Date(currentYear, currentMonth, maxDay);
+      console.log("✅ Last data date:", dashboardData.lastDataDate.toDateString());
+    }
+  } catch (e) {
+    console.warn("Could not read worksheet names:", e.message);
+  }
+
   // 1. Monthly tracking: Dashboard M8:T12 (rows 8-12, columns M-T)
   const monthlyRaw = await readExcelRange("Dashboard", "M7:T12");
   
@@ -1692,6 +1722,14 @@ function updateHeaderTime() {
   const now = new Date();
   document.getElementById('header-date').textContent = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   document.getElementById('last-sync').textContent = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+
+  // Show "Data as of" from sheet names
+  const asOfEl = document.getElementById('data-as-of');
+  if (dashboardData.lastDataDate) {
+    asOfEl.textContent = "Data as of: " + dashboardData.lastDataDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  } else {
+    asOfEl.textContent = "";
+  }
 }
 
 // ═══ INIT ═══
