@@ -799,6 +799,11 @@ async function resolveFileIds() {
       `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${CONFIG.filePath}`
     );
     fileItemId = file.id;
+    // Store file last modified date as fallback for "Data as of"
+    if (file.lastModifiedDateTime) {
+      dashboardData.fileLastModified = new Date(file.lastModifiedDateTime);
+      console.log("✅ File last modified:", dashboardData.fileLastModified.toDateString());
+    }
     console.log("✅ File ID:", fileItemId, `(${file.name})`);
   } catch (e) {
     // Try listing the folder to help debug
@@ -855,7 +860,16 @@ async function loadDashboard() {
 }
 
 async function fetchAllData() {
-  // 0. Get worksheet names to determine the latest data date
+  // 1. Monthly tracking: Dashboard M8:T12 (rows 8-12, columns M-T)
+  const monthlyRaw = await readExcelRange("Dashboard", "M7:T12");
+
+  // 2. Group breakdown (MTD): Dashboard A7:G12
+  const groupRaw = await readExcelRange("Dashboard", "A7:G12");
+
+  // 3. All-time location status: Dashboard I7:K90
+  const allTimeRaw = await readExcelRange("Dashboard", "I7:K90");
+
+  // Get worksheet names to determine the latest data date (after first reads so workbook session is active)
   try {
     const wsUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileItemId}/workbook/worksheets`;
     const wsData = await graphGet(wsUrl);
@@ -886,19 +900,12 @@ async function fetchAllData() {
     if (maxDay > 0 && matchedMonth !== null) {
       dashboardData.lastDataDate = new Date(currentYear, matchedMonth, maxDay);
       console.log("✅ Last data date:", dashboardData.lastDataDate.toDateString());
+    } else {
+      console.warn("⚠️ No dated sheets found. Names:", sheetNames.join(", "));
     }
   } catch (e) {
-    console.warn("Could not read worksheet names:", e.message);
+    console.warn("⚠️ Could not read worksheet names:", e.message);
   }
-
-  // 1. Monthly tracking: Dashboard M8:T12 (rows 8-12, columns M-T)
-  const monthlyRaw = await readExcelRange("Dashboard", "M7:T12");
-  
-  // 2. Group breakdown (MTD): Dashboard A7:G12
-  const groupRaw = await readExcelRange("Dashboard", "A7:G12");
-  
-  // 3. All-time location status: Dashboard I7:K90
-  const allTimeRaw = await readExcelRange("Dashboard", "I7:K90");
   
   // 4. MTD location detail: Dashboard A14:G95
   const mtdLocRaw = await readExcelRange("Dashboard", "A14:G95");
@@ -1732,10 +1739,11 @@ function updateHeaderTime() {
   document.getElementById('header-date').textContent = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   document.getElementById('last-sync').textContent = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 
-  // Show "Data as of" from sheet names
+  // Show "Data as of" from sheet names, fallback to file last modified
   const asOfEl = document.getElementById('data-as-of');
-  if (dashboardData.lastDataDate) {
-    asOfEl.textContent = "Data as of: " + dashboardData.lastDataDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  const dataDate = dashboardData.lastDataDate || dashboardData.fileLastModified;
+  if (dataDate) {
+    asOfEl.textContent = "Data as of: " + dataDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   } else {
     asOfEl.textContent = "";
   }
