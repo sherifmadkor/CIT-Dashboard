@@ -799,11 +799,6 @@ async function resolveFileIds() {
       `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${CONFIG.filePath}`
     );
     fileItemId = file.id;
-    // Store file last modified date as fallback for "Data as of"
-    if (file.lastModifiedDateTime) {
-      dashboardData.fileLastModified = new Date(file.lastModifiedDateTime);
-      console.log("✅ File last modified:", dashboardData.fileLastModified.toDateString());
-    }
     console.log("✅ File ID:", fileItemId, `(${file.name})`);
   } catch (e) {
     // Try listing the folder to help debug
@@ -901,9 +896,11 @@ async function fetchAllData() {
       dashboardData.lastDataDate = new Date(currentYear, matchedMonth, maxDay);
       console.log("✅ Last data date:", dashboardData.lastDataDate.toDateString());
     } else {
+      dashboardData.wsDebug = "Sheets: " + sheetNames.join(", ");
       console.warn("⚠️ No dated sheets found. Names:", sheetNames.join(", "));
     }
   } catch (e) {
+    dashboardData.wsDebug = "WS error: " + e.message;
     console.warn("⚠️ Could not read worksheet names:", e.message);
   }
   
@@ -1739,11 +1736,12 @@ function updateHeaderTime() {
   document.getElementById('header-date').textContent = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   document.getElementById('last-sync').textContent = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 
-  // Show "Data as of" from sheet names, fallback to file last modified
+  // Show "Data as of" from sheet names
   const asOfEl = document.getElementById('data-as-of');
-  const dataDate = dashboardData.lastDataDate || dashboardData.fileLastModified;
-  if (dataDate) {
-    asOfEl.textContent = "Data as of: " + dataDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  if (dashboardData.lastDataDate) {
+    asOfEl.textContent = "Data as of: " + dashboardData.lastDataDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  } else if (dashboardData.wsDebug) {
+    asOfEl.textContent = dashboardData.wsDebug;
   } else {
     asOfEl.textContent = "";
   }
