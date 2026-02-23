@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClipMoney Service Dashboard | ATM Universal Processors</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.0/lib/msal-browser.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,300&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050c0e;
+    --bg2: #091217;
+    --surface: rgba(255,255,255,0.03);
+    --border: rgba(255,255,255,0.06);
+    --border2: rgba(255,255,255,0.1);
+    --text1: #e8f5f0;
+    --text2: #7a9a8e;
+    --text3: #3d5c52;
+    --green: #10d9a0;
+    --green2: #34d399;
+    --green-dim: rgba(16,217,160,0.12);
+    --teal: #06b6d4;
+    --teal-dim: rgba(6,182,212,0.12);
+    --amber: #f59e0b;
+    --amber-dim: rgba(245,158,11,0.12);
+    --red: #ef4444;
+    --purple: #a78bfa;
+    --purple-dim: rgba(167,139,250,0.12);
+    --font-h: 'Syne', sans-serif;
+    --font-b: 'DM Sans', sans-serif;
+    --font-m: 'JetBrains Mono', monospace;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: var(--font-b);
+    background: var(--bg);
+    color: var(--text1);
+    min-height: 100vh;
+  }
+
+  /* ── LOGIN ── */
+  #login-screen {
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 20px;
+    position: relative;
+  }
+  #login-screen::before {
+    content: ''; position: fixed; inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(16,217,160,0.06) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .login-card {
+    background: rgba(255,255,255,0.03); border: 1px solid var(--border2);
+    border-radius: 20px; padding: 40px; text-align: center;
+    max-width: 380px; width: 90%;
+  }
+  .login-logo {
+    width: 60px; height: 60px; border-radius: 14px; margin: 0 auto 20px;
+    background: linear-gradient(135deg, var(--green), var(--teal));
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-h); font-weight: 800; font-size: 18px; color: #fff;
+  }
+  .login-title { font-family: var(--font-h); font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .login-sub { font-size: 13px; color: var(--text2); margin-bottom: 28px; line-height: 1.5; }
+  .btn-primary {
+    width: 100%; padding: 12px; border: none; border-radius: 10px;
+    background: linear-gradient(135deg, var(--green), var(--teal));
+    color: #000; font-family: var(--font-b); font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: opacity 0.15s, transform 0.15s; margin-bottom: 10px;
+  }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-ghost {
+    width: 100%; padding: 11px; border: 1px solid var(--border2); border-radius: 10px;
+    background: transparent; color: var(--text2); font-family: var(--font-b); font-size: 13px;
+    cursor: pointer; transition: border-color 0.15s, color 0.15s;
+  }
+  .btn-ghost:hover { border-color: var(--green); color: var(--green); }
+  .login-err { color: var(--red); font-size: 11px; margin-top: 12px; display: none; white-space: pre-wrap; text-align: left; }
+
+  /* ── LOADING ── */
+  #loading-screen {
+    display: none; flex-direction: column; align-items: center;
+    justify-content: center; min-height: 100vh; gap: 14px;
+  }
+  .spin {
+    width: 36px; height: 36px; border: 2.5px solid var(--border2);
+    border-top-color: var(--green); border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── DASHBOARD ── */
+  #dashboard { display: none; }
+
+  .demo-banner {
+    display: none;
+    background: linear-gradient(90deg, rgba(245,158,11,0.12), rgba(245,158,11,0.04));
+    border-bottom: 1px solid rgba(245,158,11,0.25);
+    padding: 8px 28px; text-align: center;
+    font-size: 12px; color: var(--amber);
+    font-family: var(--font-m); font-weight: 500;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 28px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(5,12,14,0.9); backdrop-filter: blur(16px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .h-logo {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--green), var(--teal));
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-h); font-weight: 800; font-size: 13px; color: #000;
+  }
+  .h-title { font-family: var(--font-h); font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+  .h-sub { font-size: 11px; color: var(--text3); }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+
+  .tabs {
+    display: flex; gap: 2px;
+    background: rgba(255,255,255,0.04); border-radius: 8px; padding: 3px;
+  }
+  .tab-btn {
+    background: transparent; border: 1px solid transparent;
+    color: var(--text2); padding: 6px 14px; border-radius: 5px;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    font-family: var(--font-b); transition: all 0.2s;
+  }
+  .tab-btn.active {
+    background: rgba(16,217,160,0.12); border-color: rgba(16,217,160,0.25); color: var(--green);
+  }
+
+  .month-select {
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border2);
+    color: var(--text1); padding: 6px 10px; border-radius: 6px;
+    font-family: var(--font-m); font-size: 11px; cursor: pointer;
+    outline: none;
+  }
+  .month-select option { background: #0c1a17; }
+
+  .refresh-btn {
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    color: var(--text2); padding: 6px 12px; border-radius: 6px;
+    font-size: 11px; cursor: pointer; font-family: var(--font-b); transition: all 0.2s;
+  }
+  .refresh-btn:hover { border-color: var(--green); color: var(--green); }
+  .refresh-btn.loading { opacity: 0.4; pointer-events: none; }
+
+  .hub-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text2); padding: 6px 12px; border-radius: 6px;
+    font-size: 11px; cursor: pointer; font-family: var(--font-b);
+    text-decoration: none; transition: all 0.2s; display: flex; align-items: center; gap: 4px;
+  }
+  .hub-btn:hover { border-color: var(--border2); color: var(--text1); }
+
+  .h-time .date { font-size: 10px; color: var(--text3); font-family: var(--font-m); text-align: right; }
+  .h-status { font-size: 10px; color: var(--text3); font-family: var(--font-m); display: flex; align-items: center; gap: 4px; }
+  .live-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); animation: pulse-dot 2s ease-in-out infinite; }
+  @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  /* ── CONTENT ── */
+  .content { padding: 20px 28px; max-width: 1440px; margin: 0 auto; }
+
+  /* ── KPI CARDS ── */
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 18px; }
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px; position: relative; overflow: hidden;
+  }
+  .kpi-card .accent { position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .kpi-lbl { font-size: 10px; color: var(--text2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-val { font-size: 26px; font-weight: 700; font-family: var(--font-m); letter-spacing: -1px; margin: 6px 0 2px; }
+  .kpi-sub { font-size: 10px; color: var(--text3); }
+  .kpi-icon { position: absolute; top: 14px; right: 14px; font-size: 18px; opacity: 0.35; }
+
+  /* ── CHARTS ── */
+  .grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px;
+  }
+  .chart-card h3 { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 16px; font-family: var(--font-h); }
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* ── LOCATIONS TABLE ── */
+  .loc-header { display: grid; grid-template-columns: 2fr 1.2fr 0.7fr 0.7fr 0.7fr 0.7fr; 
+    padding: 10px 16px; background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--border);
+    font-size: 10px; font-weight: 600; color: var(--text2);
+    text-transform: uppercase; letter-spacing: 0.5px; }
+  .loc-row {
+    display: grid; grid-template-columns: 2fr 1.2fr 0.7fr 0.7fr 0.7fr 0.7fr;
+    padding: 9px 16px; border-bottom: 1px solid rgba(255,255,255,0.025);
+    align-items: center; font-size: 12px; transition: background 0.1s;
+  }
+  .loc-row:hover { background: rgba(255,255,255,0.02); }
+  .loc-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .loc-grp { font-size: 10px; font-weight: 600; color: var(--text2); }
+  .loc-num { font-family: var(--font-m); font-size: 12px; font-weight: 600; text-align: right; }
+  .tier-badge {
+    font-size: 10px; padding: 2px 7px; border-radius: 8px; font-weight: 600;
+    display: inline-block; font-family: var(--font-m);
+  }
+  .tier-single { background: rgba(16,217,160,0.1); color: var(--green); }
+  .tier-small { background: rgba(6,182,212,0.1); color: var(--teal); }
+  .tier-large { background: rgba(167,139,250,0.1); color: var(--purple); }
+
+  /* ── DRIVER CARDS ── */
+  .driver-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .driver-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px; position: relative; overflow: hidden;
+  }
+  .driver-card .daccent { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .driver-name { font-family: var(--font-h); font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .driver-sub { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
+  .driver-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .ds-lbl { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.3px; }
+  .ds-val { font-family: var(--font-m); font-size: 18px; font-weight: 600; letter-spacing: -0.5px; }
+  .driver-bar { margin-top: 4px; }
+  .bar-labels { display: flex; justify-content: space-between; font-size: 9px; color: var(--text2); margin-bottom: 4px; }
+  .bar-track { height: 5px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
+  .driver-rank { position: absolute; top: 14px; right: 14px; font-size: 20px; font-weight: 800; color: rgba(255,255,255,0.05); font-family: var(--font-m); }
+
+  /* ── BILLING ── */
+  .billing-table {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+  }
+  .bill-title { padding: 14px 20px; border-bottom: 1px solid var(--border); }
+  .bill-title h3 { font-size: 14px; font-weight: 700; font-family: var(--font-h); color: var(--text2); }
+  .bill-row {
+    display: grid; grid-template-columns: 1.2fr 0.8fr 1fr 1fr 1fr 1fr;
+    padding: 10px 20px; font-family: var(--font-m); font-size: 12px;
+  }
+  .bill-row.bill-head {
+    font-family: var(--font-b); font-size: 10px; font-weight: 600;
+    color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border);
+  }
+  .bill-row + .bill-row { border-top: 1px solid rgba(255,255,255,0.025); }
+  .bill-row.bill-total { background: rgba(255,255,255,0.04); font-weight: 700; }
+  .tr { text-align: right; }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .pill-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .filter-pill {
+    padding: 5px 12px; border-radius: 16px; font-size: 11px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text2); font-family: var(--font-b);
+  }
+  .filter-pill.active { border-color: var(--green); color: var(--green); background: var(--green-dim); }
+
+  @media (max-width:768px) {
+    .kpi-grid { grid-template-columns: repeat(2,1fr); }
+    .grid-2-1,.grid-2,.grid-3 { grid-template-columns: 1fr; }
+    .header { flex-direction: column; gap: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">CM</div>
+    <div class="login-title">ClipMoney Dashboard</div>
+    <div class="login-sub">Sign in with your ATM-UP Microsoft account to access live service data.</div>
+    <button class="btn-primary" onclick="signIn()">Sign in with Microsoft</button>
+    <button class="btn-ghost" onclick="loadDemo()">View Live Demo</button>
+    <div id="login-err" class="login-err"></div>
+  </div>
+  <a href="../index.html" style="color:var(--text3);font-size:11px;font-family:var(--font-m)">← Back to Hub</a>
+</div>
+
+<!-- LOADING -->
+<div id="loading-screen">
+  <div class="spin"></div>
+  <p style="color:var(--text2);font-size:13px">Loading service data...</p>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <div class="demo-banner" id="demo-banner">
+    ⚡ DEMO MODE — Sample data Sep 2025–Jan 2026 · <span style="font-weight:400;color:var(--text2)">Connect to SharePoint for live data</span>
+  </div>
+  <div class="header">
+    <div class="header-left">
+      <div class="h-logo">CM</div>
+      <div>
+        <div class="h-title">ClipMoney · Terminal Services</div>
+        <div class="h-sub">ATM Universal Processors · Florida Operations</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('overview',this)">Overview</button>
+        <button class="tab-btn" onclick="switchTab('locations',this)">Locations</button>
+        <button class="tab-btn" onclick="switchTab('drivers',this)">Technicians</button>
+        <button class="tab-btn" onclick="switchTab('billing',this)">Billing</button>
+      </div>
+      <select class="month-select" id="month-select" onchange="onMonthChange()">
+        <option value="ALL">All Months</option>
+      </select>
+      <button class="refresh-btn" onclick="refreshData()" id="refresh-btn">↻ Refresh</button>
+      <a href="../index.html" class="hub-btn">⬡ Hub</a>
+      <div class="h-time">
+        <div class="date" id="h-date"></div>
+        <div class="h-status"><div class="live-dot"></div><span id="h-sync"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- OVERVIEW -->
+    <div id="tab-overview" class="tab-content active">
+      <div class="kpi-grid" id="kpi-cards"></div>
+      <div class="grid-2-1">
+        <div class="chart-card"><h3>Monthly Revenue Trend</h3><div class="chart-wrap"><canvas id="c-revenue"></canvas></div></div>
+        <div class="chart-card"><h3>Revenue by Pricing Tier</h3><div class="chart-wrap" style="height:170px"><canvas id="c-tier-pie"></canvas></div><div id="tier-legend" style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:4px"></div></div>
+      </div>
+      <div class="grid-2">
+        <div class="chart-card"><h3>Monthly Services by Tier</h3><div class="chart-wrap" style="height:200px"><canvas id="c-tier-bar"></canvas></div></div>
+        <div class="chart-card"><h3>Services by Technician (MTD)</h3><div class="chart-wrap" style="height:200px"><canvas id="c-driver-mtd"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- LOCATIONS -->
+    <div id="tab-locations" class="tab-content">
+      <div class="pill-row" id="group-pills"></div>
+      <div class="billing-table">
+        <div class="loc-header">
+          <span>Terminal / Location</span><span>Group</span><span class="tr">Services</span><span class="tr">Revenue</span><span class="tr">Tier</span><span class="tr">Last Visit</span>
+        </div>
+        <div id="loc-tbody" style="max-height:520px;overflow-y:auto"></div>
+      </div>
+    </div>
+
+    <!-- DRIVERS -->
+    <div id="tab-drivers" class="tab-content">
+      <div class="driver-grid" id="driver-cards"></div>
+      <div class="grid-2">
+        <div class="chart-card"><h3>Monthly Services per Technician</h3><div class="chart-wrap"><canvas id="c-driver-trend"></canvas></div></div>
+        <div class="chart-card"><h3>Revenue per Technician</h3><div class="chart-wrap"><canvas id="c-driver-rev"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- BILLING -->
+    <div id="tab-billing" class="tab-content">
+      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)" id="bill-kpis"></div>
+      <div class="billing-table" id="bill-table"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════════
+const CONFIG = {
+  clientId: "6be66255-eba9-431c-b861-0c4969e73752",
+  tenantId: "d58c0279-e372-4b9c-b8b4-2c6b467f1b35",
+  siteHost: "atmup.sharepoint.com",
+  sitePath: "/sites/OperationsDashboards",
+  // UPDATE this path to where you upload ClipMoney_Service_Tracker_v4.xlsm on SharePoint:
+  filePath: "/Invoicing Workbooks/ClipMoney_Service_Tracker_v4.xlsm",
+};
+
+const msalConfig = {
+  auth: {
+    clientId: CONFIG.clientId,
+    authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
+    redirectUri: window.location.origin + window.location.pathname,
+  },
+  cache: { cacheLocation: "sessionStorage" }
+};
+
+const SCOPES = ["Files.Read", "Sites.Read.All"];
+
+// Tier colors
+const TIER_COLORS = {
+  "Single ($35)": "#10d9a0",
+  "Group 2-5 ($21)": "#06b6d4",
+  "Group 6+ ($18)": "#a78bfa",
+};
+const DRIVER_COLORS = ["#10d9a0","#06b6d4","#f59e0b","#a78bfa","#f87171","#fb923c","#60a5fa","#e879f9","#4ade80"];
+
+// ══════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════
+let msalInstance = null, accessToken = null;
+let siteId = null, driveId = null, fileItemId = null;
+let isDemoMode = false;
+let selectedMonth = "ALL";
+
+let DATA = {
+  months: [],       // ["SEP_2025", ...]
+  monthData: {},    // { "SEP_2025": { services: [...], summary: {} } }
+  allServices: [],  // flat across all months
+  locations: {},    // { tid: { tid, name, group, services, revenue } }
+  drivers: {},      // { name: { services, revenue, months: {} } }
+};
+
+// ══════════════════════════════════════════════════════════
+// DEMO DATA
+// ══════════════════════════════════════════════════════════
+function loadDemo() {
+  isDemoMode = true;
+  // Build demo data matching the ClipMoney workbook structure
+  const demoMonths = ["SEP_2025","OCT_2025","NOV_2025","DEC_2025","JAN_2026"];
+  DATA.months = demoMonths;
+
+  // Demo monthly summaries
+  const demoSummaries = {
+    "SEP_2025": { label:"SEP 2025", services:39, single:22, small:17, large:0, revenue:2142, avgPerService:54.9 },
+    "OCT_2025": { label:"OCT 2025", services:47, single:26, small:21, large:0, revenue:2002, avgPerService:42.6 },
+    "NOV_2025": { label:"NOV 2025", services:39, single:19, small:20, large:0, revenue:1085, avgPerService:27.8 },
+    "DEC_2025": { label:"DEC 2025", services:47, single:25, small:22, large:0, revenue:1442, avgPerService:30.7 },
+    "JAN_2026": { label:"JAN 2026", services:44, single:21, small:23, large:0, revenue:1218, avgPerService:27.7 },
+  };
+
+  const demoDriverMonths = {
+    "SEP_2025": { "Angel Ramos":4,"Carter Simpkins":4,"Ernesto Perez":5,"Eugenio Munguia":5,"Hiram Matias":7,"Jerry Germond":10,"Stuart Ellison":4 },
+    "OCT_2025": { "Angel Ramos":3,"Carter Simpkins":6,"Ernesto Perez":4,"Eugenio Munguia":4,"Hiram Matias":8,"Jerry Germond":14,"Stuart Ellison":4,"Jeffrey Reyes":4 },
+    "NOV_2025": { "Angel Ramos":3,"Carter Simpkins":4,"Ernesto Perez":0,"Eugenio Munguia":3,"Hiram Matias":6,"Jerry Germond":13,"Stuart Ellison":4,"Jeffrey Reyes":4,"Gernixon Azor":2 },
+    "DEC_2025": { "Angel Ramos":3,"Carter Simpkins":4,"Ernesto Perez":3,"Eugenio Munguia":5,"Hiram Matias":5,"Jerry Germond":11,"Jose Hernandez":4,"Stuart Ellison":4,"Jeffrey Reyes":4,"Gernixon Azor":4 },
+    "JAN_2026": { "Angel Ramos":4,"Carter Simpkins":4,"Ernesto Perez":1,"Eugenio Munguia":8,"Hiram Matias":4,"Jerry Germond":5,"Jose Hernandez":3,"Stuart Ellison":2,"Jeffrey Reyes":3,"Christian Rivera":0 },
+  };
+
+  const demoLocations = [
+    { tid:"CIT008081", name:"Starbucks #86927", group:"COCONUT_POINT", tier:"Single ($35)", lastVisit:"01/22/2026", services:9, revenue:315 },
+    { tid:"CIT008082", name:"Starbucks #86883", group:"ELLENTON_OUTLETS", tier:"Single ($35)", lastVisit:"01/22/2026", services:9, revenue:315 },
+    { tid:"CIT008083", name:"Popeyes #14295", group:"BOCA_TOWN_CENTER", tier:"Single ($35)", lastVisit:"01/22/2026", services:8, revenue:280 },
+    { tid:"CIT008084", name:"Popeyes #14003", group:"SAWGRASS_MILLS_MAIN", tier:"Group 2-5 ($21)", lastVisit:"01/22/2026", services:10, revenue:210 },
+    { tid:"CIT008085", name:"Popeyes #15053 - Sawgrass 2", group:"SAWGRASS_MILLS_MAIN", tier:"Group 2-5 ($21)", lastVisit:"01/22/2026", services:10, revenue:210 },
+    { tid:"CIT008086", name:"Firehouse Subs #10101", group:"SAWGRASS_MILLS_MAIN", tier:"Group 2-5 ($21)", lastVisit:"01/22/2026", services:8, revenue:168 },
+    { tid:"CIT008087", name:"Argentina Grill", group:"SAWGRASS_MILLS_MAIN", tier:"Group 2-5 ($21)", lastVisit:"01/22/2026", services:9, revenue:189 },
+    { tid:"CIT008088", name:"Kelly's Cajun Grill", group:"SAWGRASS_MILLS_MAIN", tier:"Group 2-5 ($21)", lastVisit:"01/22/2026", services:9, revenue:189 },
+    { tid:"CIT008116", name:"Popeyes #14355", group:"POMPANO_ATLANTIC", tier:"Group 2-5 ($21)", lastVisit:"01/22/2026", services:9, revenue:189 },
+    { tid:"CIT008117", name:"Wok a Holic Coral Square", group:"POMPANO_ATLANTIC", tier:"Group 2-5 ($21)", lastVisit:"01/22/2026", services:9, revenue:189 },
+    { tid:"CIT008118", name:"Popeyes #14582", group:"NAPLES_TAMIAMI", tier:"Single ($35)", lastVisit:"01/22/2026", services:9, revenue:315 },
+    { tid:"CIT008119", name:"Popeyes #13838", group:"ORLANDO_OBT_NORTH", tier:"Single ($35)", lastVisit:"01/22/2026", services:8, revenue:280 },
+    { tid:"CIT008120", name:"Popeyes #15013", group:"ORANGE_CITY", tier:"Single ($35)", lastVisit:"10/02/2025", services:2, revenue:70 },
+    { tid:"CIT008121", name:"Starbucks #87576", group:"ORLANDO_VINELAND", tier:"Single ($35)", lastVisit:"01/22/2026", services:8, revenue:280 },
+    { tid:"CIT008122", name:"Popeyes #15210", group:"OCALA", tier:"Single ($35)", lastVisit:"01/22/2026", services:9, revenue:315 },
+    { tid:"CIT008123", name:"Burger King #32215", group:"JACKSONVILLE_SOUTHSIDE", tier:"Group 2-5 ($21)", lastVisit:"01/07/2026", services:5, revenue:105 },
+    { tid:"CIT008124", name:"Popeyes #14443", group:"JACKSONVILLE_SOUTHSIDE", tier:"Group 2-5 ($21)", lastVisit:"01/07/2026", services:6, revenue:126 },
+    { tid:"CIT008125", name:"Wok A Holic Treasure Coast", group:"JENSEN_BEACH", tier:"Single ($35)", lastVisit:"01/08/2026", services:6, revenue:210 },
+    { tid:"CIT008126", name:"Popeyes #14867", group:"WELLINGTON_FOREST_HILL", tier:"Group 2-5 ($21)", lastVisit:"01/22/2026", services:7, revenue:147 },
+    { tid:"CIT008127", name:"Kelly's Cajun Grille Wellington", group:"WELLINGTON_FOREST_HILL", tier:"Group 2-5 ($21)", lastVisit:"01/22/2026", services:7, revenue:147 },
+    { tid:"CIT008128", name:"Yeungs Lotus Express", group:"WELLINGTON_FOREST_HILL", tier:"Group 2-5 ($21)", lastVisit:"01/22/2026", services:7, revenue:147 },
+    { tid:"CIT008301", name:"Earthbound - The Avenues", group:"JACKSONVILLE_SOUTHSIDE", tier:"Group 2-5 ($21)", lastVisit:"01/07/2026", services:3, revenue:63 },
+    { tid:"CIT008360", name:"Popeyes 14615", group:"BRANDON", tier:"Single ($35)", lastVisit:"01/22/2026", services:4, revenue:140 },
+    { tid:"CIT008382", name:"Tumi #1234 Sawgrass Mills", group:"SAWGRASS_MILLS_CIR", tier:"Single ($35)", lastVisit:"01/22/2026", services:3, revenue:105 },
+    { tid:"CIT008383", name:"Tumi #1241 Dolphin Mall", group:"MIAMI_12TH", tier:"Single ($35)", lastVisit:"01/22/2026", services:4, revenue:140 },
+  ];
+
+  // Flatten into DATA structure
+  DATA.allLocations = demoLocations;
+  DATA.monthSummaries = demoSummaries;
+  DATA.driverMonths = demoDriverMonths;
+
+  // Build driver aggregates
+  DATA.driverAgg = {};
+  const driverRevPerService = { "Angel Ramos":35,"Carter Simpkins":35,"Ernesto Perez":28,"Eugenio Munguia":21,"Hiram Matias":35,"Jerry Germond":21,"Jose Hernandez":21,"Stuart Ellison":35,"Jeffrey Reyes":21,"Gernixon Azor":21,"Christian Rivera":0 };
+  for (const [month, drivers] of Object.entries(demoDriverMonths)) {
+    for (const [driver, svc] of Object.entries(drivers)) {
+      if (!DATA.driverAgg[driver]) DATA.driverAgg[driver] = { services:0, revenue:0, months:{} };
+      DATA.driverAgg[driver].services += svc;
+      DATA.driverAgg[driver].revenue += svc * (driverRevPerService[driver] || 25);
+      DATA.driverAgg[driver].months[month] = svc;
+    }
+  }
+
+  showDashboard();
+  document.getElementById('demo-banner').style.display = 'block';
+  document.getElementById('h-sync').textContent = 'Demo Mode';
+  document.querySelector('.live-dot').style.background = 'var(--amber)';
+}
+
+// ══════════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════════
+async function initMsal() {
+  if (typeof msal === 'undefined') { showLogin(); return; }
+  try {
+    msalInstance = new msal.PublicClientApplication(msalConfig);
+    await msalInstance.initialize();
+    const resp = await msalInstance.handleRedirectPromise();
+    if (resp) { accessToken = resp.accessToken; await loadDashboard(); return; }
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length > 0) {
+      try {
+        const t = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account: accounts[0] });
+        accessToken = t.accessToken;
+        await loadDashboard();
+      } catch { showLogin(); }
+    } else { showLogin(); }
+  } catch(e) { console.error(e); showLogin(); }
+}
+
+async function signIn() {
+  if (!msalInstance) { showErr('Azure AD not configured. Use Demo mode.'); return; }
+  try {
+    document.getElementById('login-err').style.display = 'none';
+    const r = await msalInstance.loginPopup({ scopes: SCOPES });
+    accessToken = r.accessToken;
+    await loadDashboard();
+  } catch(e) { showErr('Sign-in failed: ' + e.message); }
+}
+
+function showLogin() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'none';
+}
+function showErr(msg) {
+  const el = document.getElementById('login-err');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+// ══════════════════════════════════════════════════════════
+// GRAPH API
+// ══════════════════════════════════════════════════════════
+async function graphGet(url) {
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!r.ok) { const b = await r.text(); throw new Error(`${r.status} ${url}\n${b}`); }
+  return r.json();
+}
+
+async function resolveIds() {
+  const site = await graphGet(`https://graph.microsoft.com/v1.0/sites/${CONFIG.siteHost}:${CONFIG.sitePath}`);
+  siteId = site.id;
+  const drives = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/drives`);
+  const doc = drives.value.find(d => d.name === "Documents" || d.driveType === "documentLibrary");
+  if (!doc) throw new Error('Documents library not found. Available: ' + drives.value.map(d=>d.name).join(', '));
+  driveId = doc.id;
+  const file = await graphGet(`https://graph.microsoft.com/v1.0/drives/${driveId}/root:${CONFIG.filePath}`);
+  fileItemId = file.id;
+}
+
+async function readRange(sheet, addr) {
+  const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileItemId}/workbook/worksheets('${encodeURIComponent(sheet)}')/range(address='${addr}')`;
+  const d = await graphGet(url);
+  return d.values;
+}
+
+// ══════════════════════════════════════════════════════════
+// DATA LOADING FROM SHAREPOINT
+// ══════════════════════════════════════════════════════════
+async function loadDashboard() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('loading-screen').style.display = 'flex';
+  try {
+    await resolveIds();
+    await fetchData();
+    showDashboard();
+  } catch(e) {
+    console.error(e);
+    document.getElementById('loading-screen').style.display = 'none';
+    showErr('Failed to load data:\n\n' + e.message);
+    showLogin();
+  }
+}
+
+async function fetchData() {
+  // 1. Read Month_List to get available months
+  const monthList = await readRange("Month_List", "A2:A20");
+  DATA.months = monthList.map(r => String(r[0]||'').trim()).filter(Boolean);
+
+  // 2. Read Master_Locations
+  const locRaw = await readRange("Master_Locations", "A2:H50");
+  DATA.masterLocations = {};
+  for (const row of locRaw) {
+    if (!row[0]) continue;
+    DATA.masterLocations[String(row[0]).trim()] = {
+      tid: String(row[0]).trim(),
+      name: String(row[1]||'').trim(),
+      group: String(row[6]||'').trim(),
+      active: String(row[7]||'').trim() === 'Y',
+    };
+  }
+
+  // 3. Read each month sheet
+  DATA.monthData = {};
+  DATA.allLocations = {};
+  DATA.driverAgg = {};
+  DATA.driverMonths = {};
+  DATA.monthSummaries = {};
+
+  for (const month of DATA.months) {
+    try {
+      const raw = await readRange(month, "A3:H300");
+      const services = [];
+      for (const row of raw) {
+        if (!row[0] || String(row[0]).trim() === 'TOTALS') continue;
+        const dateVal = row[0];
+        let dateStr = '';
+        if (typeof dateVal === 'number' && dateVal > 40000) {
+          const d = new Date((dateVal - 25569) * 86400000);
+          dateStr = d.toLocaleDateString('en-US', {month:'2-digit',day:'2-digit',year:'numeric'});
+        } else if (dateVal instanceof Date || (dateVal && String(dateVal).match(/\d{4}/))) {
+          dateStr = String(dateVal);
+        } else { dateStr = String(dateVal||''); }
+
+        const tid = String(row[1]||'').trim();
+        const locName = String(row[2]||'').trim();
+        const driver = String(row[3]||'').trim();
+        const group = String(row[4]||'').trim();
+        const sameVisit = parseInt(row[5]) || 1;
+        const price = parseFloat(row[6]) || 0;
+
+        if (!tid && !locName) continue;
+
+        // Determine tier
+        let tier = 'Single ($35)';
+        if (price <= 18) tier = 'Group 6+ ($18)';
+        else if (price <= 21) tier = 'Group 2-5 ($21)';
+
+        services.push({ date: dateStr, tid, name: locName, driver, group, sameVisit, price, tier, month });
+
+        // Aggregate locations
+        const key = tid || locName;
+        if (!DATA.allLocations[key]) {
+          DATA.allLocations[key] = { tid, name: locName, group, services:0, revenue:0, lastVisit:'', tier };
+        }
+        DATA.allLocations[key].services++;
+        DATA.allLocations[key].revenue += price;
+        DATA.allLocations[key].lastVisit = dateStr;
+
+        // Aggregate drivers
+        if (driver) {
+          if (!DATA.driverAgg[driver]) DATA.driverAgg[driver] = { services:0, revenue:0, months:{} };
+          if (!DATA.driverMonths[driver]) DATA.driverMonths[driver] = {};
+          DATA.driverAgg[driver].services++;
+          DATA.driverAgg[driver].revenue += price;
+          DATA.driverAgg[driver].months[month] = (DATA.driverAgg[driver].months[month]||0) + 1;
+          DATA.driverMonths[driver] = DATA.driverAgg[driver].months;
+        }
+      }
+
+      // Build month summary
+      const totalRevenue = services.reduce((s,r) => s+r.price, 0);
+      const totalServices = services.length;
+      const single = services.filter(s=>s.tier==='Single ($35)').length;
+      const small = services.filter(s=>s.tier==='Group 2-5 ($21)').length;
+      const large = services.filter(s=>s.tier==='Group 6+ ($18)').length;
+      DATA.monthData[month] = services;
+      DATA.monthSummaries[month] = {
+        label: month.replace('_',' ').replace('20',''),
+        services: totalServices,
+        single, small, large,
+        revenue: totalRevenue,
+        avgPerService: totalServices > 0 ? totalRevenue / totalServices : 0,
+      };
+    } catch(e) { console.warn(`Could not read sheet ${month}:`, e.message); }
+  }
+}
+
+async function refreshData() {
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('loading'); btn.textContent = '↻ Loading...';
+  try {
+    if (isDemoMode) { /* no-op */ }
+    else { await fetchData(); }
+    renderAll();
+    updateTime();
+  } catch(e) { console.error(e); }
+  btn.classList.remove('loading'); btn.textContent = '↻ Refresh';
+}
+
+// ══════════════════════════════════════════════════════════
+// SHOW & RENDER
+// ══════════════════════════════════════════════════════════
+function showDashboard() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+
+  // Populate month dropdown
+  const sel = document.getElementById('month-select');
+  sel.innerHTML = '<option value="ALL">All Months</option>';
+  for (const m of DATA.months) {
+    const lbl = (DATA.monthSummaries[m] || {}).label || m;
+    sel.innerHTML += `<option value="${m}">${lbl}</option>`;
+  }
+  // Default to latest month
+  if (DATA.months.length > 0) {
+    sel.value = DATA.months[DATA.months.length - 1];
+    selectedMonth = sel.value;
+  }
+
+  renderAll();
+  updateTime();
+}
+
+function renderAll() {
+  renderOverview();
+  renderLocations();
+  renderDrivers();
+  renderBilling();
+}
+
+function onMonthChange() {
+  selectedMonth = document.getElementById('month-select').value;
+  renderAll();
+}
+
+function getFilteredSummaries() {
+  if (selectedMonth === 'ALL') return Object.entries(DATA.monthSummaries).map(([k,v])=>({...v,key:k}));
+  return DATA.monthSummaries[selectedMonth] ? [{...DATA.monthSummaries[selectedMonth], key:selectedMonth}] : [];
+}
+
+function getFilteredServices() {
+  if (selectedMonth === 'ALL') return Object.values(DATA.monthData || {}).flat();
+  return DATA.monthData?.[selectedMonth] || [];
+}
+
+// ── OVERVIEW ──
+let charts = {};
+function renderOverview() {
+  const summaries = getFilteredSummaries();
+  const allSvc = getFilteredServices();
+  const totalRevenue = summaries.reduce((s,m)=>s+m.revenue,0);
+  const totalServices = summaries.reduce((s,m)=>s+m.services,0);
+  const totalSingle = summaries.reduce((s,m)=>s+m.single,0);
+  const totalSmall = summaries.reduce((s,m)=>s+m.small,0);
+  const totalLarge = summaries.reduce((s,m)=>s+m.large,0);
+  const avgPerSvc = totalServices > 0 ? totalRevenue / totalServices : 0;
+  const activeTerminals = Object.keys(DATA.allLocations||{}).length;
+
+  // KPI cards
+  document.getElementById('kpi-cards').innerHTML =
+    kpiCard("Total Revenue", "$"+totalRevenue.toLocaleString(), selectedMonth==='ALL'?"All time":"This month", "var(--green)", "💰") +
+    kpiCard("Services", totalServices.toLocaleString(), selectedMonth==='ALL'?"All time":"This month", "var(--teal)", "✅") +
+    kpiCard("Avg per Service", "$"+avgPerSvc.toFixed(2), "Blended rate", "var(--amber)", "📊") +
+    kpiCard("Terminals", activeTerminals.toString(), "Active in system", "var(--purple)", "🏧") +
+    kpiCard("Completion", Math.round(avgPerSvc > 0 ? (totalSingle/(totalServices||1))*100 : 0)+"%", "Single-tier visits", "var(--green2)", "🎯");
+
+  // Revenue trend
+  if (charts.rev) charts.rev.destroy();
+  const months = Object.keys(DATA.monthSummaries||{});
+  charts.rev = new Chart(document.getElementById('c-revenue').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: months.map(m=>(DATA.monthSummaries[m]||{}).label||m),
+      datasets: [{
+        label: 'Revenue',
+        data: months.map(m=>(DATA.monthSummaries[m]||{}).revenue||0),
+        borderColor: '#10d9a0', backgroundColor: 'rgba(16,217,160,0.08)',
+        fill: true, tension: 0.3, pointRadius: 5, pointBackgroundColor: '#10d9a0', borderWidth: 2.5,
+      }]
+    },
+    options: chartOpts({ y: { ticks: { callback: v => '$'+v.toLocaleString() } } })
+  });
+
+  // Tier pie
+  if (charts.tierPie) charts.tierPie.destroy();
+  const tierData = [
+    { label: "Single ($35)", val: totalSingle, color: '#10d9a0' },
+    { label: "Group 2-5 ($21)", val: totalSmall, color: '#06b6d4' },
+    { label: "Group 6+ ($18)", val: totalLarge, color: '#a78bfa' },
+  ].filter(t => t.val > 0);
+  charts.tierPie = new Chart(document.getElementById('c-tier-pie').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: tierData.map(t=>t.label),
+      datasets: [{ data: tierData.map(t=>t.val), backgroundColor: tierData.map(t=>t.color), borderWidth: 0 }]
+    },
+    options: { responsive:true, plugins:{ legend:{display:false} }, cutout:'60%' }
+  });
+  document.getElementById('tier-legend').innerHTML = tierData.map(t=>
+    `<div style="display:flex;align-items:center;gap:5px"><div style="width:8px;height:8px;border-radius:2px;background:${t.color}"></div><span style="font-size:10px;color:var(--text2)">${t.label}: ${t.val}</span></div>`
+  ).join('');
+
+  // Tier stacked bar
+  if (charts.tierBar) charts.tierBar.destroy();
+  charts.tierBar = new Chart(document.getElementById('c-tier-bar').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: months.map(m=>(DATA.monthSummaries[m]||{}).label||m),
+      datasets: [
+        { label:'Single ($35)', data: months.map(m=>(DATA.monthSummaries[m]||{}).single||0), backgroundColor:'#10d9a0', stack:'a', borderRadius:3 },
+        { label:'Group 2-5 ($21)', data: months.map(m=>(DATA.monthSummaries[m]||{}).small||0), backgroundColor:'#06b6d4', stack:'a', borderRadius:3 },
+        { label:'Group 6+ ($18)', data: months.map(m=>(DATA.monthSummaries[m]||{}).large||0), backgroundColor:'#a78bfa', stack:'a', borderRadius:3 },
+      ]
+    },
+    options: { ...chartOpts({y:{stacked:true},x:{stacked:true}}), plugins:{legend:{display:true,labels:{color:'#4a5568',font:{size:10}}}} }
+  });
+
+  // Driver MTD bar
+  if (charts.driverMTD) charts.driverMTD.destroy();
+  const driverStats = {};
+  for (const svc of allSvc) {
+    if (!svc.driver) continue;
+    if (!driverStats[svc.driver]) driverStats[svc.driver] = { services:0, revenue:0 };
+    driverStats[svc.driver].services++;
+    driverStats[svc.driver].revenue += svc.price;
+  }
+  const driverList = Object.entries(driverStats).sort((a,b)=>b[1].services-a[1].services).slice(0,10);
+  charts.driverMTD = new Chart(document.getElementById('c-driver-mtd').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: driverList.map(([n])=>n.split(' ')[0]),
+      datasets: [{
+        label:'Services', data: driverList.map(([,v])=>v.services),
+        backgroundColor: driverList.map((_,i)=>DRIVER_COLORS[i%DRIVER_COLORS.length]),
+        borderRadius: 4,
+      }]
+    },
+    options: chartOpts()
+  });
+}
+
+// ── LOCATIONS ──
+function renderLocations() {
+  const locs = Object.values(DATA.allLocations||{});
+  const groups = ['ALL', ...new Set(locs.map(l=>l.group).filter(Boolean))].sort();
+
+  document.getElementById('group-pills').innerHTML = groups.map((g,i) =>
+    `<button class="filter-pill ${g==='ALL'?'active':''}" data-group="${g}" onclick="filterLocs('${g}',this)">${g==='ALL'?'All Groups ('+locs.length+')':g+' ('+locs.filter(l=>l.group===g).length+')'}</button>`
+  ).join('');
+
+  window._allLocs = locs.sort((a,b)=>b.revenue-a.revenue);
+  renderLocTable(window._allLocs);
+}
+
+function filterLocs(group, el) {
+  document.querySelectorAll('.filter-pill').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  const filtered = group === 'ALL' ? window._allLocs : window._allLocs.filter(l=>l.group===group);
+  renderLocTable(filtered);
+}
+
+function renderLocTable(locs) {
+  document.getElementById('loc-tbody').innerHTML = locs.map(loc => {
+    const tierClass = loc.tier==='Single ($35)' ? 'tier-single' : loc.tier==='Group 2-5 ($21)' ? 'tier-small' : 'tier-large';
+    return `<div class="loc-row">
+      <span class="loc-name" title="${loc.name}">${loc.name}</span>
+      <span class="loc-grp">${loc.group}</span>
+      <span class="loc-num tr" style="color:var(--green)">${loc.services}</span>
+      <span class="loc-num tr">$${loc.revenue.toLocaleString()}</span>
+      <span><span class="tier-badge ${tierClass}">${loc.tier.split(' ')[0]}</span></span>
+      <span class="loc-num tr" style="color:var(--text3);font-size:10px">${loc.lastVisit}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── DRIVERS ──
+function renderDrivers() {
+  const drivers = Object.entries(DATA.driverAgg||{})
+    .sort((a,b)=>b[1].services-a[1].services)
+    .filter(([,v])=>v.services>0);
+
+  document.getElementById('driver-cards').innerHTML = drivers.map(([name, d], i) => {
+    const color = DRIVER_COLORS[i % DRIVER_COLORS.length];
+    const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+    const maxSvc = drivers[0]?.[1].services || 1;
+    const pct = Math.round((d.services/maxSvc)*100);
+    const firstName = name.split(' ')[0];
+    return `<div class="driver-card">
+      <div class="daccent" style="background:${color}"></div>
+      <div class="driver-rank">#${i+1}</div>
+      <div class="driver-name">${medal} ${name}</div>
+      <div class="driver-sub">${DATA.months.length} months · Technician</div>
+      <div class="driver-stats">
+        <div><div class="ds-lbl">Services</div><div class="ds-val" style="color:${color}">${d.services}</div></div>
+        <div><div class="ds-lbl">Revenue</div><div class="ds-val" style="color:var(--text2)">$${d.revenue.toLocaleString()}</div></div>
+      </div>
+      <div class="driver-bar">
+        <div class="bar-labels"><span>Activity</span><span>${pct}% of leader</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Driver trend chart
+  if (charts.driverTrend) charts.driverTrend.destroy();
+  const months = DATA.months;
+  charts.driverTrend = new Chart(document.getElementById('c-driver-trend').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: months.map(m=>(DATA.monthSummaries[m]||{}).label||m),
+      datasets: drivers.slice(0,6).map(([name,d],i) => ({
+        label: name.split(' ')[0],
+        data: months.map(m => d.months[m]||0),
+        borderColor: DRIVER_COLORS[i%DRIVER_COLORS.length],
+        borderWidth: 2, tension: 0.3,
+        pointRadius: 4, pointBackgroundColor: DRIVER_COLORS[i%DRIVER_COLORS.length],
+        fill: false,
+      }))
+    },
+    options: { ...chartOpts(), plugins:{legend:{display:true,labels:{color:'#4a5568',font:{size:10},usePointStyle:true}}} }
+  });
+
+  // Driver revenue bar
+  if (charts.driverRev) charts.driverRev.destroy();
+  charts.driverRev = new Chart(document.getElementById('c-driver-rev').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: drivers.map(([n])=>n.split(' ')[0]),
+      datasets: [{
+        label:'Revenue',
+        data: drivers.map(([,d])=>d.revenue),
+        backgroundColor: drivers.map((_,i)=>DRIVER_COLORS[i%DRIVER_COLORS.length]),
+        borderRadius: 4,
+      }]
+    },
+    options: chartOpts({ y:{ ticks:{ callback: v=>'$'+v.toLocaleString() } } })
+  });
+}
+
+// ── BILLING ──
+function renderBilling() {
+  const summaries = Object.entries(DATA.monthSummaries||{});
+  const totalRevenue = summaries.reduce((s,[,m])=>s+m.revenue,0);
+  const totalServices = summaries.reduce((s,[,m])=>s+m.services,0);
+
+  document.getElementById('bill-kpis').innerHTML =
+    kpiCard("YTD Revenue","$"+totalRevenue.toLocaleString(),summaries.length+" months billed","var(--green)","💰") +
+    kpiCard("Total Services",totalServices.toLocaleString(),"All months","var(--teal)","✅") +
+    kpiCard("Blended Rate","$"+(totalServices>0?(totalRevenue/totalServices).toFixed(2):"0.00"),"Per terminal visit","var(--amber)","📈");
+
+  let html = `<div class="bill-title"><h3>Monthly Billing Summary</h3></div>
+    <div class="bill-row bill-head">
+      <span>Month</span><span class="tr">Services</span><span class="tr">Single ($35)</span>
+      <span class="tr">Group ($21)</span><span class="tr">Group ($18)</span><span class="tr">Total Revenue</span>
+    </div>`;
+  for (const [key, m] of summaries) {
+    html += `<div class="bill-row">
+      <span style="color:var(--text1);font-weight:700">${m.label}</span>
+      <span class="tr" style="color:var(--text2)">${m.services}</span>
+      <span class="tr" style="color:var(--green)">$${(m.single*35).toLocaleString()}</span>
+      <span class="tr" style="color:var(--teal)">$${(m.small*21).toLocaleString()}</span>
+      <span class="tr" style="color:var(--purple)">$${(m.large*18).toLocaleString()}</span>
+      <span class="tr" style="color:var(--green);font-weight:700">$${m.revenue.toLocaleString()}</span>
+    </div>`;
+  }
+  html += `<div class="bill-row bill-total">
+    <span>TOTAL</span>
+    <span class="tr">${totalServices}</span>
+    <span class="tr" style="color:var(--green)">$${summaries.reduce((s,[,m])=>s+m.single*35,0).toLocaleString()}</span>
+    <span class="tr" style="color:var(--teal)">$${summaries.reduce((s,[,m])=>s+m.small*21,0).toLocaleString()}</span>
+    <span class="tr" style="color:var(--purple)">$${summaries.reduce((s,[,m])=>s+m.large*18,0).toLocaleString()}</span>
+    <span class="tr" style="color:var(--amber)">$${totalRevenue.toLocaleString()}</span>
+  </div>`;
+
+  document.getElementById('bill-table').innerHTML = html;
+}
+
+// ── HELPERS ──
+function kpiCard(label, value, sub, color, icon) {
+  return `<div class="kpi-card">
+    <div class="accent" style="background:${color}"></div>
+    <div class="kpi-icon">${icon}</div>
+    <div class="kpi-lbl">${label}</div>
+    <div class="kpi-val" style="color:${color}">${value}</div>
+    <div class="kpi-sub">${sub}</div>
+  </div>`;
+}
+
+function chartOpts(scalesOvr) {
+  return {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ display:false } },
+    scales:{
+      x:{ grid:{color:'rgba(255,255,255,0.03)'}, ticks:{color:'#3d5c52',font:{size:10}}, ...(scalesOvr?.x||{}) },
+      y:{ grid:{color:'rgba(255,255,255,0.03)'}, ticks:{color:'#3d5c52',font:{size:10}}, ...(scalesOvr?.y||{}) },
+    }
+  };
+}
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  btn.classList.add('active');
+}
+
+function updateTime() {
+  const now = new Date();
+  document.getElementById('h-date').textContent = now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+  if (!isDemoMode) document.getElementById('h-sync').textContent = 'Updated '+now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+}
+
+window.addEventListener('load', initMsal);
+</script>
+</body>
+</html>
