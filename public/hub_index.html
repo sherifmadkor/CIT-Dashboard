@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATM-UP Operations Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050810;
+    --surface: #0c1120;
+    --border: rgba(255,255,255,0.06);
+    --border-hover: rgba(255,255,255,0.14);
+    --text-1: #f0f4ff;
+    --text-2: #8892a4;
+    --text-3: #4a5568;
+    --blue: #4f8ef7;
+    --blue-dim: rgba(79,142,247,0.12);
+    --green: #34d399;
+    --green-dim: rgba(52,211,153,0.12);
+    --amber: #fbbf24;
+    --amber-dim: rgba(251,191,36,0.12);
+    --purple: #a78bfa;
+    --purple-dim: rgba(167,139,250,0.12);
+    --red: #f87171;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text-1);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(79,142,247,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,142,247,0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+  }
+
+  /* Ambient glow */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -30vh; left: 50%;
+    transform: translateX(-50%);
+    width: 900px; height: 600px;
+    background: radial-gradient(ellipse, rgba(79,142,247,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--border);
+    position: relative; z-index: 10;
+    backdrop-filter: blur(8px);
+  }
+
+  .brand {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .brand-mark {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--blue), #7c3aed);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 13px; color: #fff;
+  }
+  .brand-name {
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px;
+    letter-spacing: -0.3px;
+  }
+  .brand-sub {
+    font-size: 11px; color: var(--text-3);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .header-right {
+    display: flex; align-items: center; gap: 20px;
+  }
+  .live-pill {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.2);
+    border-radius: 20px; padding: 4px 12px;
+    font-size: 11px; font-weight: 500; color: var(--green);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ─── HERO ─── */
+  .hero {
+    padding: 72px 40px 48px;
+    text-align: center;
+    position: relative; z-index: 1;
+  }
+  .hero-eyebrow {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--blue); letter-spacing: 2px; text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .hero h1 {
+    font-family: 'Syne', sans-serif; font-size: clamp(36px, 5vw, 56px);
+    font-weight: 800; letter-spacing: -2px; line-height: 1.05;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, #fff 40%, rgba(255,255,255,0.5));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .hero p {
+    font-size: 15px; color: var(--text-2); max-width: 480px; margin: 0 auto 48px;
+    line-height: 1.65; font-weight: 300;
+  }
+
+  /* ─── STATS STRIP ─── */
+  .stats-strip {
+    display: flex; justify-content: center; gap: 0;
+    margin: 0 40px 56px;
+    border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+    position: relative; z-index: 1;
+  }
+  .stat-item {
+    flex: 1; padding: 20px 28px;
+    border-right: 1px solid var(--border);
+    text-align: center;
+  }
+  .stat-item:last-child { border-right: none; }
+  .stat-val {
+    font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800;
+    letter-spacing: -1px; margin-bottom: 4px;
+  }
+  .stat-lbl { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* ─── DASHBOARD GRID ─── */
+  .grid-label {
+    padding: 0 40px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text-3); text-transform: uppercase; letter-spacing: 1.5px;
+    margin-bottom: 16px;
+    position: relative; z-index: 1;
+  }
+
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 16px;
+    padding: 0 40px 40px;
+    position: relative; z-index: 1;
+  }
+
+  .dash-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    text-decoration: none; color: inherit;
+    display: block;
+    position: relative; overflow: hidden;
+  }
+  .dash-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .dash-card:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+  }
+  .dash-card:hover::before { opacity: 1; }
+
+  .dash-card.cit { --card-accent: var(--blue); --card-bg: var(--blue-dim); }
+  .dash-card.cit::before { background: var(--blue); }
+  .dash-card.clip { --card-accent: var(--green); --card-bg: var(--green-dim); }
+  .dash-card.clip::before { background: var(--green); }
+  .dash-card.coming { --card-accent: var(--text-3); opacity: 0.5; cursor: default; }
+  .dash-card.coming:hover { transform: none; box-shadow: none; border-color: var(--border); }
+
+  .card-top {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 20px;
+  }
+  .card-icon {
+    width: 44px; height: 44px; border-radius: 10px;
+    background: var(--card-bg, rgba(255,255,255,0.06));
+    border: 1px solid var(--card-accent, var(--border));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .card-badge {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 500;
+    padding: 3px 10px; border-radius: 12px;
+  }
+  .badge-live {
+    background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.25); color: var(--green);
+  }
+  .badge-new {
+    background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.25); color: var(--amber);
+  }
+  .badge-soon {
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-3);
+  }
+
+  .card-title {
+    font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700;
+    letter-spacing: -0.5px; margin-bottom: 6px;
+  }
+  .card-desc {
+    font-size: 13px; color: var(--text-2); line-height: 1.6; margin-bottom: 20px;
+    font-weight: 300;
+  }
+
+  .card-metrics {
+    display: flex; gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .card-metric {
+    flex: 1; padding: 10px 14px;
+    border-right: 1px solid var(--border);
+    text-align: center;
+  }
+  .card-metric:last-child { border-right: none; }
+  .metric-val {
+    font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 500;
+    color: var(--card-accent, var(--text-1)); margin-bottom: 2px;
+  }
+  .metric-lbl { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.3px; }
+
+  .card-footer {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .card-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag {
+    font-size: 10px; padding: 3px 8px; border-radius: 4px;
+    background: rgba(255,255,255,0.04); color: var(--text-3);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .card-arrow {
+    font-size: 16px; color: var(--card-accent, var(--text-3));
+    transition: transform 0.2s;
+  }
+  .dash-card:hover .card-arrow { transform: translateX(4px); }
+
+  /* ─── FOOTER ─── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 20px 40px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; color: var(--text-3);
+    font-family: 'JetBrains Mono', monospace;
+    position: relative; z-index: 1;
+  }
+
+  @media (max-width: 640px) {
+    header { padding: 16px 20px; }
+    .hero { padding: 48px 20px 32px; }
+    .stats-strip { margin: 0 20px 40px; flex-direction: column; }
+    .stat-item { border-right: none; border-bottom: 1px solid var(--border); }
+    .stat-item:last-child { border-bottom: none; }
+    .dashboard-grid { padding: 0 20px 32px; }
+    .grid-label { padding: 0 20px; }
+    footer { padding: 16px 20px; flex-direction: column; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark">AU</div>
+    <div>
+      <div class="brand-name">ATM Universal Processors</div>
+      <div class="brand-sub">Operations Hub · v2.0</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-pill"><div class="live-dot"></div>All Systems Live</div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-eyebrow">Operations Intelligence Platform</div>
+  <h1>Your Dashboards,<br>One Place.</h1>
+  <p>Centralized visibility across all active contracts and service lines. Live data from SharePoint, updated automatically.</p>
+</section>
+
+<div class="stats-strip">
+  <div class="stat-item">
+    <div class="stat-val" style="color: var(--blue)">2</div>
+    <div class="stat-lbl">Active Dashboards</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-val" style="color: var(--green)">80+</div>
+    <div class="stat-lbl">Locations Tracked</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-val" style="color: var(--amber)">$394K</div>
+    <div class="stat-lbl">Annual CIT Contract</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-val" style="color: var(--purple)">M365</div>
+    <div class="stat-lbl">Powered By</div>
+  </div>
+</div>
+
+<div class="grid-label">— Select Dashboard</div>
+
+<div class="dashboard-grid">
+
+  <!-- CIT Dashboard -->
+  <a href="./cit/index.html" class="dash-card cit">
+    <div class="card-top">
+      <div class="card-icon">🚐</div>
+      <span class="card-badge badge-live">● LIVE</span>
+    </div>
+    <div class="card-title">CIT · Cash-In-Transit</div>
+    <div class="card-desc">Broward County pickup operations — 80 locations across Agencies, Tax Collectors, Parks & Libraries.</div>
+    <div class="card-metrics">
+      <div class="card-metric">
+        <div class="metric-val">80</div>
+        <div class="metric-lbl">Locations</div>
+      </div>
+      <div class="card-metric">
+        <div class="metric-val">$18.50</div>
+        <div class="metric-lbl">Rate/Pickup</div>
+      </div>
+      <div class="card-metric">
+        <div class="metric-val">Oct–Sep</div>
+        <div class="metric-lbl">Contract</div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="card-tags">
+        <span class="tag">SharePoint</span>
+        <span class="tag">Power Automate</span>
+        <span class="tag">Office Scripts</span>
+      </div>
+      <span class="card-arrow">→</span>
+    </div>
+  </a>
+
+  <!-- ClipMoney Dashboard -->
+  <a href="./clipmoney/index.html" class="dash-card clip">
+    <div class="card-top">
+      <div class="card-icon">💳</div>
+      <span class="card-badge badge-new">✦ NEW</span>
+    </div>
+    <div class="card-title">ClipMoney · Terminal Services</div>
+    <div class="card-desc">ATM terminal servicing across FL — tiered pricing per visit, multi-driver route performance tracking.</div>
+    <div class="card-metrics">
+      <div class="card-metric">
+        <div class="metric-val">30+</div>
+        <div class="metric-lbl">Terminals</div>
+      </div>
+      <div class="card-metric">
+        <div class="metric-val">$18–35</div>
+        <div class="metric-lbl">Tier Rate</div>
+      </div>
+      <div class="card-metric">
+        <div class="metric-val">Monthly</div>
+        <div class="metric-lbl">Billing</div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="card-tags">
+        <span class="tag">SharePoint</span>
+        <span class="tag">VBA Import</span>
+        <span class="tag">Graph API</span>
+      </div>
+      <span class="card-arrow">→</span>
+    </div>
+  </a>
+
+  <!-- Placeholder: ATM Service -->
+  <div class="dash-card coming">
+    <div class="card-top">
+      <div class="card-icon" style="opacity:0.4">🏧</div>
+      <span class="card-badge badge-soon">COMING SOON</span>
+    </div>
+    <div class="card-title">ATM Service</div>
+    <div class="card-desc">ATM maintenance and service contract dashboard. Tiered pricing $40–$125 per service type.</div>
+    <div class="card-metrics">
+      <div class="card-metric">
+        <div class="metric-val" style="color:var(--text-3)">—</div>
+        <div class="metric-lbl">Locations</div>
+      </div>
+      <div class="card-metric">
+        <div class="metric-val" style="color:var(--text-3)">—</div>
+        <div class="metric-lbl">Rate</div>
+      </div>
+      <div class="card-metric">
+        <div class="metric-val" style="color:var(--text-3)">—</div>
+        <div class="metric-lbl">Status</div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="card-tags">
+        <span class="tag">In Development</span>
+      </div>
+      <span class="card-arrow" style="opacity:0.2">→</span>
+    </div>
+  </div>
+
+  <!-- Placeholder: Empire ATM -->
+  <div class="dash-card coming">
+    <div class="card-top">
+      <div class="card-icon" style="opacity:0.4">🏦</div>
+      <span class="card-badge badge-soon">COMING SOON</span>
+    </div>
+    <div class="card-title">Empire ATM</div>
+    <div class="card-desc">Cash loading services dashboard. $65 per service, consolidated fleet reporting.</div>
+    <div class="card-metrics">
+      <div class="card-metric">
+        <div class="metric-val" style="color:var(--text-3)">—</div>
+        <div class="metric-lbl">Locations</div>
+      </div>
+      <div class="card-metric">
+        <div class="metric-val" style="color:var(--text-3)">—</div>
+        <div class="metric-lbl">Rate</div>
+      </div>
+      <div class="card-metric">
+        <div class="metric-val" style="color:var(--text-3)">—</div>
+        <div class="metric-lbl">Status</div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="card-tags">
+        <span class="tag">In Development</span>
+      </div>
+      <span class="card-arrow" style="opacity:0.2">→</span>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <span>ATM Universal Processors LLC · Operations Hub</span>
+  <span id="foot-time"></span>
+</footer>
+
+<script>
+  const el = document.getElementById('foot-time');
+  function tick() {
+    el.textContent = new Date().toLocaleString('en-US', {weekday:'short',month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  }
+  tick();
+  setInterval(tick, 30000);
+</script>
+</body>
+</html>
