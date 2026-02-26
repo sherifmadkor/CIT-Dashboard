@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Empire ATM | Service Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.0/lib/msal-browser.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0c0c0f;
+  --surface: #131318;
+  --surface2: #1a1a22;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --text1: #f0f0f5;
+  --text2: #8888a0;
+  --text3: #44445a;
+  --gold: #c9a84c;
+  --gold2: #e8c96a;
+  --gold-dim: rgba(201,168,76,0.12);
+  --green: #3dba7e;
+  --red: #e05c5c;
+  --blue: #5c8fe0;
+  --font-display: 'Syne', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text1);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── GRAIN OVERLAY ── */
+body::before {
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events:none;
+  z-index:0;
+  opacity:0.6;
+}
+
+/* ── LOGIN ── */
+#login-screen {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  min-height:100vh;
+  gap:20px;
+  position:relative;
+  z-index:1;
+}
+#login-screen::before {
+  content:'';
+  position:absolute;
+  width:600px; height:600px;
+  background: radial-gradient(circle, rgba(201,168,76,0.06) 0%, transparent 70%);
+  border-radius:50%;
+  pointer-events:none;
+}
+.login-logo {
+  width:56px; height:56px;
+  border:1.5px solid var(--gold);
+  border-radius:12px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-mono); font-size:11px; font-weight:600;
+  color:var(--gold); letter-spacing:1px;
+}
+.login-title {
+  font-family:var(--font-display);
+  font-size:28px; font-weight:800;
+  letter-spacing:-1px;
+}
+.login-title span { color:var(--gold); }
+.login-sub { font-size:13px; color:var(--text2); }
+.login-btn {
+  background: var(--gold);
+  color:#0c0c0f;
+  border:none; padding:11px 32px; border-radius:8px;
+  font-family:var(--font-display); font-size:13px; font-weight:700;
+  cursor:pointer; letter-spacing:0.3px;
+  transition: all 0.2s;
+}
+.login-btn:hover { background:var(--gold2); transform:translateY(-1px); }
+.demo-btn {
+  background:transparent;
+  border:1px solid var(--border2);
+  color:var(--text2);
+  padding:10px 28px; border-radius:8px;
+  font-family:var(--font-body); font-size:13px;
+  cursor:pointer; transition:all 0.2s;
+}
+.demo-btn:hover { border-color:var(--gold); color:var(--gold); }
+#login-error { color:var(--red); font-size:12px; max-width:400px; text-align:center; display:none; }
+
+/* ── LOADING ── */
+#loading-screen {
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  min-height:100vh; gap:16px; position:relative; z-index:1;
+}
+.spinner {
+  width:36px; height:36px;
+  border:2px solid var(--border2);
+  border-top-color:var(--gold);
+  border-radius:50%;
+  animation:spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ── DASHBOARD ── */
+#dashboard { display:none; position:relative; z-index:1; }
+
+/* ── HEADER ── */
+.header {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:14px 28px;
+  border-bottom:1px solid var(--border);
+  background:rgba(12,12,15,0.9);
+  backdrop-filter:blur(20px);
+  position:sticky; top:0; z-index:100;
+}
+.header-left { display:flex; align-items:center; gap:14px; }
+.h-logo {
+  width:34px; height:34px;
+  border:1.5px solid var(--gold);
+  border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-mono); font-size:9px; font-weight:600;
+  color:var(--gold);
+}
+.h-title { font-family:var(--font-display); font-size:16px; font-weight:700; letter-spacing:-0.3px; }
+.h-sub { font-size:11px; color:var(--text3); margin-top:1px; }
+.header-right { display:flex; align-items:center; gap:12px; }
+.back-btn {
+  background:transparent; border:1px solid var(--border);
+  color:var(--text2); padding:6px 12px; border-radius:6px;
+  font-size:11px; cursor:pointer; font-family:var(--font-body);
+  transition:all 0.2s; text-decoration:none; display:flex; align-items:center; gap:4px;
+}
+.back-btn:hover { border-color:var(--gold); color:var(--gold); }
+.tabs {
+  display:flex; gap:2px;
+  background:rgba(255,255,255,0.04);
+  border-radius:7px; padding:3px;
+}
+.tab-btn {
+  background:transparent; border:none;
+  color:var(--text2); padding:6px 14px; border-radius:5px;
+  font-size:12px; font-weight:600; cursor:pointer;
+  font-family:var(--font-body); transition:all 0.2s;
+}
+.tab-btn.active { background:var(--gold-dim); color:var(--gold); }
+.refresh-btn {
+  background:transparent; border:1px solid var(--border);
+  color:var(--text2); padding:6px 12px; border-radius:6px;
+  font-size:11px; cursor:pointer; font-family:var(--font-body); transition:all 0.2s;
+}
+.refresh-btn:hover { border-color:var(--border2); color:var(--text1); }
+.header-time { text-align:right; }
+.h-date { font-size:10px; color:var(--text3); font-family:var(--font-mono); }
+.h-live { font-size:10px; color:var(--text3); font-family:var(--font-mono); display:flex; align-items:center; gap:4px; justify-content:flex-end; }
+.live-dot { width:5px; height:5px; border-radius:50%; background:var(--green); }
+
+/* ── DEMO BANNER ── */
+#demo-banner {
+  display:none;
+  background:rgba(201,168,76,0.08);
+  border-bottom:1px solid rgba(201,168,76,0.2);
+  padding:7px 28px; text-align:center;
+  font-size:11px; color:var(--gold); font-weight:600; font-family:var(--font-body);
+}
+
+/* ── CONTENT ── */
+.content { padding:24px 28px; max-width:1400px; margin:0 auto; }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+
+/* ── KPI ROW ── */
+.kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+.kpi-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:18px 20px;
+  position:relative; overflow:hidden;
+}
+.kpi-card::before {
+  content:'';
+  position:absolute; top:0; left:0; right:0; height:1px;
+}
+.kpi-card.gold::before { background:var(--gold); }
+.kpi-card.green::before { background:var(--green); }
+.kpi-card.blue::before { background:var(--blue); }
+.kpi-card.red::before { background:var(--red); }
+.kpi-label { font-size:10px; font-weight:600; color:var(--text2); text-transform:uppercase; letter-spacing:1px; }
+.kpi-value { font-family:var(--font-mono); font-size:26px; font-weight:600; margin:8px 0 4px; letter-spacing:-1px; }
+.kpi-sub { font-size:11px; color:var(--text3); }
+.kpi-icon { position:absolute; top:16px; right:18px; font-size:22px; opacity:0.2; }
+
+/* ── SECTION LABEL ── */
+.section-label {
+  font-family:var(--font-display);
+  font-size:11px; font-weight:700;
+  color:var(--text3); text-transform:uppercase;
+  letter-spacing:2px; margin-bottom:12px;
+  display:flex; align-items:center; gap:10px;
+}
+.section-label::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* ── CHART GRID ── */
+.chart-grid-2 { display:grid; grid-template-columns:2fr 1fr; gap:14px; margin-bottom:20px; }
+.chart-grid-eq { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
+.chart-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; padding:20px;
+}
+.chart-card h3 {
+  font-family:var(--font-display); font-size:13px; font-weight:600;
+  color:var(--text2); margin-bottom:16px; letter-spacing:0.3px;
+}
+.chart-wrap { position:relative; height:220px; }
+
+/* ── CONTRACT BAR ── */
+.contract-bar {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; padding:16px 20px; margin-bottom:20px;
+}
+.cb-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.cb-label { font-size:12px; font-weight:600; color:var(--text2); }
+.cb-amount { font-family:var(--font-mono); font-size:13px; color:var(--gold); font-weight:600; }
+.cb-track { height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden; margin-bottom:8px; }
+.cb-fill { height:100%; background:linear-gradient(90deg,var(--gold),var(--gold2)); border-radius:3px; transition:width 1s ease; }
+.cb-months { display:flex; gap:16px; flex-wrap:wrap; }
+.cb-month { font-size:10px; color:var(--text3); font-family:var(--font-mono); }
+.cb-month span { color:var(--text2); }
+
+/* ── DRIVER CARDS ── */
+.driver-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin-bottom:20px; }
+.driver-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; padding:16px; position:relative; overflow:hidden;
+}
+.driver-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+}
+.driver-rank { position:absolute; top:12px; right:14px; font-size:18px; font-weight:800; color:rgba(255,255,255,0.05); font-family:var(--font-mono); }
+.driver-name { font-family:var(--font-display); font-size:14px; font-weight:700; margin-bottom:12px; }
+.driver-stats { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.ds-item .ds-label { font-size:9px; color:var(--text3); text-transform:uppercase; letter-spacing:0.5px; }
+.ds-item .ds-val { font-family:var(--font-mono); font-size:17px; font-weight:600; }
+.driver-bar { margin-top:12px; }
+.db-label { display:flex; justify-content:space-between; font-size:9px; color:var(--text3); margin-bottom:4px; }
+.db-track { height:4px; background:rgba(255,255,255,0.05); border-radius:2px; overflow:hidden; }
+.db-fill { height:100%; border-radius:2px; transition:width 0.8s ease; }
+
+/* ── TERMINAL TABLE ── */
+.term-table {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; overflow:hidden;
+}
+.term-thead {
+  display:grid; grid-template-columns:1fr 2fr 1fr 1fr 0.8fr;
+  padding:10px 16px;
+  background:rgba(255,255,255,0.03);
+  border-bottom:1px solid var(--border);
+  font-size:10px; font-weight:600; color:var(--text3);
+  text-transform:uppercase; letter-spacing:0.8px;
+}
+.term-tbody { max-height:480px; overflow-y:auto; }
+.term-row {
+  display:grid; grid-template-columns:1fr 2fr 1fr 1fr 0.8fr;
+  padding:8px 16px; border-bottom:1px solid rgba(255,255,255,0.03);
+  align-items:center; font-size:12px; transition:background 0.15s;
+}
+.term-row:hover { background:rgba(255,255,255,0.02); }
+.tr-tid { font-family:var(--font-mono); font-size:11px; color:var(--text2); }
+.tr-name { font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tr-route { font-size:10px; font-weight:600; color:var(--gold); }
+.tr-num { font-family:var(--font-mono); font-weight:600; text-align:right; }
+
+/* ── BILLING TABLE ── */
+.bill-table {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; overflow:hidden; margin-top:14px;
+}
+.bill-title { padding:14px 20px; border-bottom:1px solid var(--border); }
+.bill-title h3 { font-family:var(--font-display); font-size:13px; font-weight:600; color:var(--text2); }
+.bill-row {
+  display:grid; grid-template-columns:120px 1fr 1fr 1fr 1fr;
+  padding:10px 20px; font-family:var(--font-mono); font-size:12px;
+  border-bottom:1px solid rgba(255,255,255,0.03);
+}
+.bill-row.header {
+  font-family:var(--font-body); font-size:10px; font-weight:600;
+  color:var(--text3); text-transform:uppercase; letter-spacing:0.8px;
+  background:rgba(255,255,255,0.03);
+}
+.bill-row.total { background:rgba(201,168,76,0.06); font-weight:700; }
+.tr { text-align:right; }
+
+/* ── FILTER PILLS ── */
+.filter-pills { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+.fpill {
+  padding:5px 12px; border-radius:20px; font-size:11px; font-weight:600;
+  cursor:pointer; font-family:var(--font-body); transition:all 0.2s;
+  border:1px solid var(--border); background:transparent; color:var(--text2);
+}
+.fpill.active { border-color:var(--gold); color:var(--gold); background:var(--gold-dim); }
+
+@media(max-width:768px) {
+  .kpi-row { grid-template-columns:repeat(2,1fr); }
+  .chart-grid-2,.chart-grid-eq { grid-template-columns:1fr; }
+  .header { flex-direction:column; gap:10px; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-logo">ATM</div>
+  <div class="login-title">Empire <span>ATM</span></div>
+  <div class="login-sub">Service Performance Dashboard · ATM Universal Processors</div>
+  <button class="login-btn" onclick="signIn()">Sign in with Microsoft</button>
+  <button class="demo-btn" onclick="loadDemo()">View Demo</button>
+  <div id="login-error"></div>
+</div>
+
+<!-- LOADING -->
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div style="font-size:12px;color:var(--text2)">Loading dashboard data...</div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <div id="demo-banner">⚡ DEMO MODE — Sample data · <span style="font-weight:400;color:var(--text2)">Connect to SharePoint for live data</span></div>
+
+  <div class="header">
+    <div class="header-left">
+      <div class="h-logo">ATM</div>
+      <div>
+        <div class="h-title">Empire ATM · Service Dashboard</div>
+        <div class="h-sub">ATM Universal Processors LLC</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <a href="../index.html" class="back-btn">← Hub</a>
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('overview',this)">Overview</button>
+        <button class="tab-btn" onclick="switchTab('drivers',this)">Drivers</button>
+        <button class="tab-btn" onclick="switchTab('terminals',this)">Terminals</button>
+        <button class="tab-btn" onclick="switchTab('billing',this)">Billing</button>
+      </div>
+      <button class="refresh-btn" onclick="refreshData()" id="refresh-btn">↻ Refresh</button>
+      <div class="header-time">
+        <div class="h-date" id="h-date"></div>
+        <div class="h-live"><div class="live-dot" id="live-dot"></div><span id="last-sync"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- OVERVIEW TAB -->
+    <div id="tab-overview" class="tab-content active">
+      <div class="kpi-row" id="kpi-row"></div>
+      <div class="contract-bar" id="contract-bar"></div>
+      <div class="chart-grid-2">
+        <div class="chart-card"><h3>Monthly Revenue Trend</h3><div class="chart-wrap"><canvas id="c-revenue"></canvas></div></div>
+        <div class="chart-card"><h3>Services by Driver (MTD)</h3><div class="chart-wrap"><canvas id="c-driver-pie"></canvas></div></div>
+      </div>
+      <div class="chart-grid-eq">
+        <div class="chart-card"><h3>Monthly Service Volume</h3><div class="chart-wrap" style="height:200px"><canvas id="c-volume"></canvas></div></div>
+        <div class="chart-card"><h3>Revenue by Route</h3><div class="chart-wrap" style="height:200px"><canvas id="c-route"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- DRIVERS TAB -->
+    <div id="tab-drivers" class="tab-content">
+      <div class="driver-grid" id="driver-grid"></div>
+      <div class="chart-grid-eq">
+        <div class="chart-card"><h3>Driver Performance — All-Time Services</h3><div class="chart-wrap" style="height:240px"><canvas id="c-driver-bar"></canvas></div></div>
+        <div class="chart-card"><h3>Monthly Services by Driver</h3><div class="chart-wrap" style="height:240px"><canvas id="c-driver-trend"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- TERMINALS TAB -->
+    <div id="tab-terminals" class="tab-content">
+      <div class="filter-pills" id="filter-pills"></div>
+      <div class="term-table">
+        <div class="term-thead">
+          <span>TID</span><span>Location</span><span>Route</span><span class="tr">All-Time</span><span class="tr">Revenue</span>
+        </div>
+        <div class="term-tbody" id="term-tbody"></div>
+      </div>
+    </div>
+
+    <!-- BILLING TAB -->
+    <div id="tab-billing" class="tab-content">
+      <div class="kpi-row" style="grid-template-columns:repeat(3,1fr)" id="billing-kpis"></div>
+      <div class="bill-table" id="bill-table"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────
+const CONFIG = {
+  clientId: "6be66255-eba9-431c-b861-0c4969e73752",
+  tenantId: "d58c0279-e372-4b9c-b8b4-2c6b467f1b35",
+  siteHost: "atmup.sharepoint.com",
+  sitePath: "/sites/OperationsDashboards",
+  filePath: "/Invoicing Workbooks/Empire_ATM_Tracker.xlsm",
+  ratePerService: 65,
+};
+
+const msalConfig = {
+  auth: {
+    clientId: CONFIG.clientId,
+    authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
+    redirectUri: window.location.origin + '/empire-atm',
+  },
+  cache: { cacheLocation: "sessionStorage" }
+};
+
+const SCOPES = ["Files.Read","Sites.Read.All"];
+let msalInstance = null, accessToken = null;
+let siteId = null, driveId = null, fileItemId = null;
+
+// ── STATE ─────────────────────────────────────────────────────────────────
+let D = {
+  currentMonth: "",
+  totalTerminals: 0,
+  mtdServices: 0,
+  mtdRevenue: 0,
+  allTimeServices: 0,
+  allTimeRevenue: 0,
+  avgMonthly: 0,
+  bestMonth: 0,
+  monthly: [],       // [{label, services, revenue}]
+  driversMTD: [],    // [{name, services, revenue}]
+  driversAllTime: [],
+  terminals: [],     // [{tid, location, route, services, revenue}]
+};
+
+// ── DEMO DATA ─────────────────────────────────────────────────────────────
+function loadDemo() {
+  D = {
+    currentMonth: "JAN 2026",
+    totalTerminals: 70,
+    mtdServices: 28,
+    mtdRevenue: 1820,
+    allTimeServices: 634,
+    allTimeRevenue: 41210,
+    avgMonthly: 1381,
+    bestMonth: 5915,
+    monthly: [
+      {label:"JAN 25",services:91,revenue:5915},
+      {label:"FEB 25",services:87,revenue:5655},
+      {label:"MAR 25",services:77,revenue:5005},
+      {label:"APR 25",services:69,revenue:4485},
+      {label:"MAY 25",services:37,revenue:2405},
+      {label:"JUN 25",services:38,revenue:2470},
+      {label:"JUL 25",services:46,revenue:2990},
+      {label:"AUG 25",services:30,revenue:1950},
+      {label:"SEP 25",services:30,revenue:1950},
+      {label:"OCT 25",services:37,revenue:2405},
+      {label:"NOV 25",services:26,revenue:1690},
+      {label:"DEC 25",services:38,revenue:2470},
+      {label:"JAN 26",services:28,revenue:1820},
+    ],
+    driversMTD: [
+      {name:"Hiram Matias",services:13,revenue:845},
+      {name:"Jerry Germond",services:4,revenue:260},
+      {name:"Carter Simpkins",services:4,revenue:260},
+      {name:"Angel Ramos",services:2,revenue:130},
+      {name:"Eugenio Munguia",services:2,revenue:130},
+      {name:"Jose Hernandez",services:1,revenue:65},
+      {name:"Ernesto Perez",services:0,revenue:0},
+      {name:"Stuart Ellison",services:0,revenue:0},
+      {name:"Christian Rivera",services:0,revenue:0},
+    ],
+    driversAllTime: [
+      {name:"Hiram Matias",services:139,revenue:9035},
+      {name:"Ernesto Perez",services:92,revenue:5980},
+      {name:"Jerry Germond",services:87,revenue:5655},
+      {name:"Eugenio Munguia",services:80,revenue:5200},
+      {name:"Angel Ramos",services:72,revenue:4680},
+      {name:"Carter Simpkins",services:44,revenue:2860},
+      {name:"Jeffrey Reyes",services:32,revenue:2080},
+      {name:"Kevin Gazaway",services:29,revenue:1885},
+      {name:"Jose Hernandez",services:17,revenue:1105},
+      {name:"Angel Rodriguez",services:14,revenue:910},
+      {name:"Christian Rivera",services:11,revenue:715},
+      {name:"Stuart Ellison",services:9,revenue:585},
+      {name:"Matthew Newby",services:7,revenue:455},
+    ],
+    terminals: [
+      {tid:"P718399",location:"UN BP YULEE-THEIRS",route:"EMPIRE CFL",services:8,revenue:520},
+      {tid:"P717419",location:"UN MOBIL PAT THOMAS PKY-QUINCY",route:"EMPIRE CFL",services:6,revenue:390},
+      {tid:"P262548",location:"RESIDENCE INN DELRAY BEACH",route:"Empire",services:12,revenue:780},
+      {tid:"P329916",location:"DAIRY QUEEN",route:"Empire",services:5,revenue:325},
+      {tid:"P298132",location:"MONTE CARLO",route:"Empire",services:9,revenue:585},
+      {tid:"P647151",location:"OBT FLEA MARKET 2",route:"Empire",services:7,revenue:455},
+      {tid:"P615974",location:"HAMPTON INN & SUITES",route:"Empire",services:4,revenue:260},
+      {tid:"P262798",location:"COURTYARD MARRIOTT KEY LARGO",route:"Empire",services:11,revenue:715},
+    ],
+  };
+
+  show('dashboard');
+  hide('login-screen');
+  hide('loading-screen');
+  document.getElementById('demo-banner').style.display = 'block';
+  document.getElementById('live-dot').style.background = 'var(--gold)';
+  document.getElementById('last-sync').textContent = 'Demo Mode';
+  render();
+  updateTime();
+}
+
+// ── AUTH ──────────────────────────────────────────────────────────────────
+async function initMsal() {
+  try {
+    msalInstance = new msal.PublicClientApplication(msalConfig);
+    await msalInstance.initialize();
+    const resp = await msalInstance.handleRedirectPromise();
+    if (resp) { accessToken = resp.accessToken; await loadDashboard(); return; }
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length > 0) {
+      try {
+        const t = await msalInstance.acquireTokenSilent({scopes:SCOPES, account:accounts[0]});
+        accessToken = t.accessToken; await loadDashboard();
+      } catch(e) { showLogin(); }
+    } else { showLogin(); }
+  } catch(e) { showLogin(); }
+}
+
+async function signIn() {
+  if (!msalInstance) { showErr("Azure AD not configured. Use Demo mode."); return; }
+  try {
+    document.getElementById('login-error').style.display='none';
+    const resp = await msalInstance.loginPopup({scopes:SCOPES});
+    accessToken = resp.accessToken;
+    await loadDashboard();
+  } catch(e) { showErr("Sign-in failed: " + e.message); }
+}
+
+function showLogin() { show('login-screen'); hide('loading-screen'); hide('dashboard'); }
+function showErr(msg) { const e=document.getElementById('login-error'); e.textContent=msg; e.style.display='block'; }
+
+// ── GRAPH API ─────────────────────────────────────────────────────────────
+async function graphGet(url) {
+  const r = await fetch(url, {headers:{"Authorization":`Bearer ${accessToken}`}});
+  if (!r.ok) throw new Error(`Graph ${r.status}: ${url}`);
+  return r.json();
+}
+
+async function resolveIds() {
+  const site = await graphGet(`https://graph.microsoft.com/v1.0/sites/${CONFIG.siteHost}:${CONFIG.sitePath}`);
+  siteId = site.id;
+  const drives = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/drives`);
+  const doc = drives.value.find(d => d.driveType === "documentLibrary");
+  driveId = doc.id;
+  const file = await graphGet(`https://graph.microsoft.com/v1.0/drives/${driveId}/root:${CONFIG.filePath}`);
+  fileItemId = file.id;
+}
+
+async function readRange(sheet, addr) {
+  const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileItemId}/workbook/worksheets('${encodeURIComponent(sheet)}')/range(address='${addr}')`;
+  const d = await graphGet(url);
+  return d.values;
+}
+
+// ── DATA LOADING ──────────────────────────────────────────────────────────
+async function loadDashboard() {
+  hide('login-screen'); show('loading-screen');
+  try {
+    await resolveIds();
+    await fetchData();
+    hide('loading-screen'); show('dashboard');
+    render(); updateTime();
+  } catch(e) {
+    hide('loading-screen');
+    showErr("Load failed: " + e.message);
+    showLogin();
+  }
+}
+
+async function fetchData() {
+  // KPIs: B7, F7, J7, N7 (row 7 = index 6)
+  const kpiRaw = await readRange("Dashboard", "B7:N7");
+  // Driver MTD: B13:D21
+  const driverMTD = await readRange("Dashboard", "B13:D21");
+  // YTD by month: J13:K25
+  const ytdRaw = await readRange("Dashboard", "J13:K25");
+  // All-time stats: N13:N19
+  const allTimeRaw = await readRange("Dashboard", "N13:N19");
+  // Current month label: F8
+  const monthRaw = await readRange("Dashboard", "F8:F8");
+
+  D.totalTerminals = pn(kpiRaw[0][0]);
+  D.mtdServices    = pn(kpiRaw[0][4]);
+  D.mtdRevenue     = pn(kpiRaw[0][8]);
+  D.currentMonth   = String(monthRaw[0][0] || "").trim();
+
+  D.allTimeServices = pn(allTimeRaw[0][0]);
+  D.allTimeRevenue  = pn(allTimeRaw[2][0]);
+  D.avgMonthly      = pn(allTimeRaw[4][0]);
+  D.bestMonth       = pn(allTimeRaw[6][0]);
+
+  // Monthly trend
+  const monthLabels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","YTD TOTAL"];
+  D.monthly = [];
+  for (let i = 0; i < ytdRaw.length; i++) {
+    const lbl = String(ytdRaw[i][0] || "").trim();
+    const rev = pn(ytdRaw[i][1]);
+    if (!lbl || lbl === "YTD TOTAL") continue;
+    D.monthly.push({label: lbl, services: Math.round(rev / CONFIG.ratePerService), revenue: rev});
+  }
+
+  // Drivers MTD
+  D.driversMTD = [];
+  for (const row of driverMTD) {
+    const name = String(row[0] || "").trim();
+    if (!name) continue;
+    D.driversMTD.push({name, services: pn(row[1]), revenue: pn(row[2])});
+  }
+
+  // All-time drivers — read from month sheets dynamically would require many calls
+  // Use MTD data scaled for now; live version reads all month sheets
+  D.driversAllTime = [...D.driversMTD].sort((a,b) => b.services - a.services);
+
+  // Terminals: read Master_Terminals
+  const termRaw = await readRange("Master_Terminals", "A4:H80");
+  D.terminals = [];
+  for (const row of termRaw) {
+    const tid = String(row[0] || "").trim();
+    if (!tid) continue;
+    D.terminals.push({
+      tid,
+      location: String(row[1] || "").trim(),
+      route: String(row[6] || "").trim(),
+      active: String(row[7] || "").trim().toUpperCase() === "Y",
+      services: 0,
+      revenue: 0,
+    });
+  }
+}
+
+function pn(v) { if (v === null || v === undefined || v === "") return 0; const n = Number(v); return isNaN(n) ? 0 : n; }
+
+async function refreshData() {
+  const btn = document.getElementById('refresh-btn');
+  btn.textContent = '↻ Loading...';
+  try { await fetchData(); render(); updateTime(); } catch(e) { console.error(e); }
+  btn.textContent = '↻ Refresh';
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────
+let charts = {};
+
+function render() {
+  renderOverview();
+  renderDrivers();
+  renderTerminals();
+  renderBilling();
+}
+
+function renderOverview() {
+  const allTimeTotal = D.allTimeRevenue || D.monthly.reduce((s,m) => s+m.revenue, 0);
+
+  document.getElementById('kpi-row').innerHTML = `
+    ${kpi("MTD Services", D.mtdServices.toLocaleString(), D.currentMonth, "gold", "🔧")}
+    ${kpi("MTD Revenue", "$"+D.mtdRevenue.toLocaleString(), "$${CONFIG.ratePerService}/service", "green", "💰")}
+    ${kpi("All-Time Revenue", "$"+allTimeTotal.toLocaleString(), D.allTimeServices+" total services", "blue", "📊")}
+    ${kpi("Active Terminals", D.totalTerminals.toString(), "Across FL", "red", "🏧")}
+  `;
+
+  // Contract bar — no fixed contract total for Empire, show YTD vs best
+  const ytdTotal = D.monthly.reduce((s,m) => s+m.revenue, 0);
+  const months = D.monthly;
+  document.getElementById('contract-bar').innerHTML = `
+    <div class="cb-top">
+      <span class="cb-label">Year-to-Date Revenue</span>
+      <span class="cb-amount">$${ytdTotal.toLocaleString()} billed</span>
+    </div>
+    <div class="cb-track"><div class="cb-fill" style="width:${Math.min((ytdTotal / Math.max(D.bestMonth * months.length, 1)) * 100, 100)}%"></div></div>
+    <div class="cb-months">
+      ${months.map(m => `<span class="cb-month">${m.label}: <span>$${m.revenue.toLocaleString()}</span></span>`).join('')}
+    </div>
+  `;
+
+  // Revenue trend
+  destroyChart('c-revenue');
+  charts['c-revenue'] = new Chart(document.getElementById('c-revenue'), {
+    type:'line',
+    data:{
+      labels: D.monthly.map(m=>m.label),
+      datasets:[{
+        label:'Revenue',
+        data: D.monthly.map(m=>m.revenue),
+        borderColor:'#c9a84c', backgroundColor:'rgba(201,168,76,0.1)',
+        fill:true, tension:0.3, pointRadius:4, pointBackgroundColor:'#c9a84c', borderWidth:2,
+      }]
+    },
+    options: chartOpts({y:{ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}}})
+  });
+
+  // Driver pie MTD
+  const activeMTD = D.driversMTD.filter(d=>d.services>0);
+  const driverColors = ['#c9a84c','#3dba7e','#5c8fe0','#e05c5c','#a084c9','#e08c5c','#5cc9b3','#c95c8e'];
+  destroyChart('c-driver-pie');
+  charts['c-driver-pie'] = new Chart(document.getElementById('c-driver-pie'), {
+    type:'doughnut',
+    data:{
+      labels: activeMTD.map(d=>d.name),
+      datasets:[{data:activeMTD.map(d=>d.services), backgroundColor:driverColors, borderWidth:0}]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:true, labels:{color:'#8888a0',font:{size:10},usePointStyle:true}},
+        tooltip:{callbacks:{label:c=>c.label+': '+c.parsed+' services'}}}
+    }
+  });
+
+  // Volume bar
+  destroyChart('c-volume');
+  charts['c-volume'] = new Chart(document.getElementById('c-volume'), {
+    type:'bar',
+    data:{
+      labels: D.monthly.map(m=>m.label),
+      datasets:[{label:'Services', data:D.monthly.map(m=>m.services), backgroundColor:'rgba(201,168,76,0.7)', borderRadius:4}]
+    },
+    options: chartOpts()
+  });
+
+  // Route breakdown
+  const routeMap = {};
+  D.terminals.forEach(t => {
+    if (!routeMap[t.route]) routeMap[t.route] = 0;
+    routeMap[t.route]++;
+  });
+  destroyChart('c-route');
+  charts['c-route'] = new Chart(document.getElementById('c-route'), {
+    type:'bar',
+    data:{
+      labels: Object.keys(routeMap),
+      datasets:[{label:'Terminals', data:Object.values(routeMap), backgroundColor:['#c9a84c','#3dba7e'], borderRadius:4}]
+    },
+    options: chartOpts()
+  });
+}
+
+function renderDrivers() {
+  const top = D.driversAllTime.filter(d=>d.services>0).slice(0,9);
+  const maxSvc = Math.max(...top.map(d=>d.services), 1);
+  const colors = ['#c9a84c','#3dba7e','#5c8fe0','#e05c5c','#a084c9','#e08c5c','#5cc9b3','#c95c8e','#84c984'];
+  const medals = ['🥇','🥈','🥉'];
+
+  document.getElementById('driver-grid').innerHTML = top.map((d,i) => `
+    <div class="driver-card">
+      <div class="driver-card" style="position:absolute;top:0;left:0;right:0;height:2px;background:${colors[i]};border-radius:12px 12px 0 0"></div>
+      <div class="driver-rank">#${i+1}</div>
+      <div class="driver-name">${medals[i]||''} ${d.name}</div>
+      <div class="driver-stats">
+        <div class="ds-item"><div class="ds-label">Services</div><div class="ds-val" style="color:${colors[i]}">${d.services}</div></div>
+        <div class="ds-item"><div class="ds-label">Revenue</div><div class="ds-val" style="color:var(--text1)">$${d.revenue.toLocaleString()}</div></div>
+      </div>
+      <div class="driver-bar">
+        <div class="db-label"><span>Share of services</span><span>${((d.services/maxSvc)*100).toFixed(0)}%</span></div>
+        <div class="db-track"><div class="db-fill" style="width:${(d.services/maxSvc)*100}%;background:${colors[i]}"></div></div>
+      </div>
+    </div>
+  `).join('');
+
+  // All-time bar
+  destroyChart('c-driver-bar');
+  charts['c-driver-bar'] = new Chart(document.getElementById('c-driver-bar'), {
+    type:'bar',
+    data:{
+      labels: top.map(d=>d.name.split(' ')[0]),
+      datasets:[
+        {label:'Services', data:top.map(d=>d.services), backgroundColor:colors.slice(0,top.length), borderRadius:4},
+      ]
+    },
+    options: chartOpts()
+  });
+
+  // Trend — monthly breakdown by top 5 drivers using MTD data as proxy
+  const top5 = top.slice(0,5);
+  destroyChart('c-driver-trend');
+  charts['c-driver-trend'] = new Chart(document.getElementById('c-driver-trend'), {
+    type:'bar',
+    data:{
+      labels: top5.map(d=>d.name.split(' ')[0]),
+      datasets:[{
+        label:'Revenue',
+        data: top5.map(d=>d.revenue),
+        backgroundColor: colors.slice(0,5),
+        borderRadius:4,
+      }]
+    },
+    options:{
+      ...chartOpts({y:{ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}}}),
+      plugins:{legend:{display:false}}
+    }
+  });
+}
+
+function renderTerminals() {
+  const routes = ['All',...new Set(D.terminals.map(t=>t.route))];
+  document.getElementById('filter-pills').innerHTML = routes.map((r,i) =>
+    `<button class="fpill ${i===0?'active':''}" onclick="filterTerminals('${r}',this)">${r}</button>`
+  ).join('');
+  window._allTerminals = D.terminals;
+  renderTermTable(D.terminals);
+}
+
+function renderTermTable(list) {
+  document.getElementById('term-tbody').innerHTML = list.map(t => `
+    <div class="term-row">
+      <span class="tr-tid">${t.tid}</span>
+      <span class="tr-name">${t.location}</span>
+      <span class="tr-route">${t.route}</span>
+      <span class="tr-num" style="color:var(--text2)">${t.services||'—'}</span>
+      <span class="tr-num" style="color:var(--gold)">${t.revenue?'$'+t.revenue.toLocaleString():'—'}</span>
+    </div>
+  `).join('');
+}
+
+function filterTerminals(route, el) {
+  document.querySelectorAll('.fpill').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  const list = route === 'All' ? window._allTerminals : window._allTerminals.filter(t=>t.route===route);
+  renderTermTable(list);
+}
+
+function renderBilling() {
+  const allTimeRevenue = D.monthly.reduce((s,m)=>s+m.revenue,0);
+  const allTimeSvc = D.monthly.reduce((s,m)=>s+m.services,0);
+
+  document.getElementById('billing-kpis').innerHTML = `
+    ${kpi("Rate Per Service","$65","Fixed flat rate","gold","💵")}
+    ${kpi("All-Time Revenue","$"+allTimeRevenue.toLocaleString(),allTimeSvc+" services","green","✅")}
+    ${kpi("Active Terminals",D.totalTerminals.toString(),"Across all routes","blue","🏧")}
+  `;
+
+  let html = `
+    <div class="bill-title"><h3>Monthly Billing Summary</h3></div>
+    <div class="bill-row header"><span>Month</span><span class="tr">Services</span><span class="tr">Rate</span><span class="tr">Revenue</span><span class="tr">Cumulative</span></div>
+  `;
+  let cum = 0;
+  for (const m of D.monthly) {
+    cum += m.revenue;
+    html += `<div class="bill-row">
+      <span style="color:var(--text1);font-weight:600;font-family:var(--font-display)">${m.label}</span>
+      <span class="tr" style="color:var(--text2)">${m.services}</span>
+      <span class="tr" style="color:var(--text3)">$${CONFIG.ratePerService}</span>
+      <span class="tr" style="color:var(--gold)">$${m.revenue.toLocaleString()}</span>
+      <span class="tr" style="color:var(--text2)">$${cum.toLocaleString()}</span>
+    </div>`;
+  }
+  html += `<div class="bill-row total">
+    <span>TOTAL</span>
+    <span class="tr">${allTimeSvc}</span>
+    <span class="tr"></span>
+    <span class="tr" style="color:var(--gold)">$${allTimeRevenue.toLocaleString()}</span>
+    <span class="tr" style="color:var(--gold)">$${allTimeRevenue.toLocaleString()}</span>
+  </div>`;
+  document.getElementById('bill-table').innerHTML = html;
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────
+function kpi(label, value, sub, accent, icon) {
+  return `<div class="kpi-card ${accent}">
+    <div class="kpi-icon">${icon}</div>
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-value">${value}</div>
+    <div class="kpi-sub">${sub}</div>
+  </div>`;
+}
+
+function chartOpts(scalesOverride) {
+  return {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{grid:{color:'rgba(255,255,255,0.03)'},ticks:{color:'#44445a',font:{size:10}}},
+      y:{grid:{color:'rgba(255,255,255,0.03)'},ticks:{color:'#44445a',font:{size:10}},...(scalesOverride?.y||{})},
+      ...(scalesOverride||{})
+    }
+  };
+}
+
+function destroyChart(id) { if(charts[id]) { charts[id].destroy(); delete charts[id]; } }
+function show(id) { document.getElementById(id).style.display = id==='loading-screen'?'flex':'block'; }
+function hide(id) { document.getElementById(id).style.display = 'none'; }
+
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  el.classList.add('active');
+}
+
+function updateTime() {
+  const now = new Date();
+  document.getElementById('h-date').textContent = now.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
+  document.getElementById('last-sync').textContent = now.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"});
+}
+
+window.addEventListener('load', () => {
+  if (typeof msal === 'undefined') { showLogin(); return; }
+  initMsal();
+});
+</script>
+</body>
+</html>
