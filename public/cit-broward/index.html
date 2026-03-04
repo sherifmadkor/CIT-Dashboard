@@ -328,6 +328,7 @@
   <button onclick="loadDemoMode()" style="background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-secondary);padding:10px 28px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-body);transition:all 0.2s">View Live Demo</button>
   <div id="login-error"></div>
 </div>
+<a href="hub_index.html" style="color:#475569;font-size:11px;font-family:'JetBrains Mono',monospace;text-decoration:none;transition:color 0.2s" onmouseover="this.style.color='#3B82F6'" onmouseout="this.style.color='#475569'">← Back to Hub</a>
 
 <!-- ═══ LOADING SCREEN ═══ -->
 <div id="loading-screen">
@@ -349,6 +350,7 @@
       </div>
     </div>
     <div class="header-right">
+      <a href="hub_index.html" class="refresh-btn" style="text-decoration:none">← Hub</a>
       <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
         <button class="tab-btn" onclick="switchTab('locations')">Locations</button>
@@ -454,10 +456,91 @@ const msalConfig = {
   auth: {
     clientId: CONFIG.clientId,
     authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
-    redirectUri: window.location.origin + '/cit-broward/',
+    redirectUri: window.location.origin + window.location.pathname,
   },
   cache: { cacheLocation: "sessionStorage" }
 };
+
+const CIT_CACHE_KEY = 'cit_broward_monthly_cache';
+const MONTH_ABBRS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+
+function parseMonthKey(label) {
+  if (!label) return null;
+  const s = label.replace(/\s*Invoice$/i,'').replace(/^MTD\s*/i,'').trim().toUpperCase();
+  const parts = s.split(/[\s,]+/);
+  if (parts.length < 2) return null;
+  const mi = MONTH_ABBRS.indexOf(parts[0].substring(0,3));
+  if (mi === -1) return null;
+  let yr = parseInt(parts[parts.length-1],10);
+  if (isNaN(yr)) return null;
+  if (yr < 100) yr += 2000;
+  return `${yr}-${String(mi+1).padStart(2,'0')}`;
+}
+
+function getCurrentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+}
+
+function getCachedCITMonthly() {
+  try { return JSON.parse(localStorage.getItem(CIT_CACHE_KEY) || '{}'); } catch(e) { return {}; }
+}
+
+function saveCITMonthlyCache(monthlyData) {
+  const cache = getCachedCITMonthly();
+  const curKey = getCurrentMonthKey();
+  for (const m of monthlyData) {
+    const key = parseMonthKey(m.label);
+    if (!key) continue;
+    cache[key] = {
+      label: m.label.replace(/\s*Invoice$/i,'').trim(),
+      pickups: m.pickups, agencies: m.agencies, tax: m.tax,
+      parks: m.parks, libraries: m.libraries, rate: m.rate || 0, total: m.total,
+      date: m.date ? m.date.toISOString() : null,
+      isMTD: key === curKey,
+    };
+  }
+  localStorage.setItem(CIT_CACHE_KEY, JSON.stringify(cache));
+}
+
+function mergeCITMonthlyWithCache(liveData) {
+  const cache = getCachedCITMonthly();
+  const curKey = getCurrentMonthKey();
+  const liveKeys = new Set();
+
+  // Tag live entries with isMTD
+  for (const m of liveData) {
+    const key = parseMonthKey(m.label);
+    if (key) {
+      liveKeys.add(key);
+      m.isMTD = (key === curKey);
+    }
+  }
+
+  // Restore cached months missing from live data
+  for (const [key, cached] of Object.entries(cache)) {
+    if (liveKeys.has(key)) continue;
+    if (key >= curKey) continue; // don't restore future/current MTD from cache
+    if (!cached.total || cached.total <= 0) continue;
+    // Parse date from cached ISO string
+    let d = cached.date ? new Date(cached.date) : null;
+    liveData.push({
+      label: cached.label || key,
+      pickups: cached.pickups, agencies: cached.agencies, tax: cached.tax,
+      parks: cached.parks, libraries: cached.libraries, rate: cached.rate || 0, total: cached.total,
+      date: d, isMTD: false, _fromCache: true,
+    });
+  }
+
+  // Sort chronologically
+  liveData.sort((a,b) => {
+    const ka = parseMonthKey(a.label) || '';
+    const kb = parseMonthKey(b.label) || '';
+    return ka.localeCompare(kb);
+  });
+
+  return liveData;
+}
 
 const graphScopes = ["Files.Read", "Sites.Read.All"];
 let msalInstance = null;
@@ -487,18 +570,35 @@ let isDemoMode = false;
 
 function loadDemoMode() {
   isDemoMode = true;
-  
+
+  // Build demo monthly data dynamically relative to current date
+  const now = new Date();
+  const curM = now.getMonth(), curY = now.getFullYear();
+  const demoMonthlyData = [
+    { offset: -4, pickups: 750, agencies: 6123.5, tax: 555, parks: 2923, libraries: 4273.5, total: 13875 },
+    { offset: -3, pickups: 955, agencies: 7233.5, tax: 629, parks: 5032, libraries: 4773, total: 17667.5 },
+    { offset: -2, pickups: 1064, agencies: 8565.5, tax: 758.5, parks: 4588, libraries: 5772, total: 19684 },
+    { offset: -1, pickups: 1024, agencies: 7936.5, tax: 703, parks: 4828.5, libraries: 5476, total: 18944 },
+    { offset: 0, pickups: 268, agencies: 2035, tax: 185, parks: 1258, libraries: 1480, total: 4958 },
+  ];
+  const demoMonthly = demoMonthlyData.map(dm => {
+    const d = new Date(curY, curM + dm.offset, 1);
+    const m = d.getMonth(), y = d.getFullYear();
+    const isMTD = dm.offset === 0;
+    return {
+      label: isMTD ? "MTD Invoice" : MONTH_ABBRS[m] + " " + String(y).slice(-2) + " Invoice",
+      pickups: dm.pickups, agencies: dm.agencies, tax: dm.tax,
+      parks: dm.parks, libraries: dm.libraries, total: dm.total,
+      date: d, isMTD,
+    };
+  });
+  const curLabel = MONTH_ABBRS[curM] + " " + String(curY).slice(-2);
+
   dashboardData = {
     mtdPickups: 268, mtdPD: 0, mtdAmount: 4958, allTimeAmount: 75125.5,
-    currentMonth: "FEB 26",
-    lastDataDate: new Date(2026, 1, 19),
-    monthlyTracking: [
-      { label: "OCT 25 Invoice", pickups: 750, agencies: 6123.5, tax: 555, parks: 2923, libraries: 4273.5, total: 13875, date: new Date(2025,9,1) },
-      { label: "NOV 25 Invoice", pickups: 955, agencies: 7233.5, tax: 629, parks: 5032, libraries: 4773, total: 17667.5, date: new Date(2025,10,1) },
-      { label: "DEC 25 Invoice", pickups: 1064, agencies: 8565.5, tax: 758.5, parks: 4588, libraries: 5772, total: 19684, date: new Date(2025,11,1) },
-      { label: "JAN 26 Invoice", pickups: 1024, agencies: 7936.5, tax: 703, parks: 4828.5, libraries: 5476, total: 18944, date: new Date(2026,0,1) },
-      { label: "MTD Invoice", pickups: 268, agencies: 2035, tax: 185, parks: 1258, libraries: 1480, total: 4958, date: new Date(2026,1,1) },
-    ],
+    currentMonth: curLabel,
+    lastDataDate: new Date(curY, curM, Math.min(now.getDate(), 19)),
+    monthlyTracking: demoMonthly,
     groupBreakdown: {
       agencies: { name: "AGENCIES", pickups: 110, pd: 0, p2d: 0, totalSvc: 110, amount: 2035, avgDay: 22 },
       tax: { name: "TAX COLLECTORS", pickups: 10, pd: 0, p2d: 0, totalSvc: 10, amount: 185, avgDay: 2 },
@@ -1007,16 +1107,54 @@ async function fetchAllData() {
   dashboardData.mtdPD = parseNum(mtdSummaryRaw[1][2]);
   dashboardData.mtdAmount = parseNum(mtdSummaryRaw[1][4]);
 
-  // Detect current month and apply invoice labels
+  // Merge with cached historical data (restores months lost when Excel resets)
+  dashboardData.monthlyTracking = mergeCITMonthlyWithCache(dashboardData.monthlyTracking);
+
+  // Cache all monthly data for future sessions
+  saveCITMonthlyCache(dashboardData.monthlyTracking);
+
+  // Detect current month and apply invoice labels + isMTD flag
+  const curMK = getCurrentMonthKey();
   if (dashboardData.monthlyTracking.length > 0) {
-    const last = dashboardData.monthlyTracking[dashboardData.monthlyTracking.length - 1];
-    dashboardData.currentMonth = last.label;
-    // Apply "Invoice" labels: past months → "MON YY Invoice", current → "MTD Invoice"
-    dashboardData.monthlyTracking.forEach((m, i, arr) => {
-      if (i === arr.length - 1) {
+    // Determine the current MTD month by system date, not just "last entry"
+    let mtdFound = false;
+    dashboardData.monthlyTracking.forEach(m => {
+      const key = parseMonthKey(m.label);
+      if (key === curMK) {
+        m.isMTD = true;
+        mtdFound = true;
+        dashboardData.currentMonth = m.label;
+      } else {
+        m.isMTD = false;
+      }
+    });
+    // If no entry matches current month, add one from KPIs
+    if (!mtdFound && (dashboardData.mtdPickups > 0 || dashboardData.mtdAmount > 0)) {
+      const now = new Date();
+      const mtdLabel = MONTH_ABBRS[now.getMonth()] + " " + String(now.getFullYear()).slice(2);
+      dashboardData.monthlyTracking.push({
+        label: mtdLabel, pickups: dashboardData.mtdPickups,
+        agencies: 0, tax: 0, parks: 0, libraries: 0, rate: CONFIG.ratePerPickup,
+        total: dashboardData.mtdAmount, date: now, isMTD: true,
+      });
+      dashboardData.currentMonth = mtdLabel;
+      // Re-sort after adding
+      dashboardData.monthlyTracking.sort((a,b) => {
+        const ka = parseMonthKey(a.label) || '';
+        const kb = parseMonthKey(b.label) || '';
+        return ka.localeCompare(kb);
+      });
+    }
+    if (!dashboardData.currentMonth) {
+      const last = dashboardData.monthlyTracking[dashboardData.monthlyTracking.length - 1];
+      dashboardData.currentMonth = last.label;
+    }
+    // Apply display labels: completed months → "MON YY Invoice", MTD → "MTD Invoice"
+    dashboardData.monthlyTracking.forEach(m => {
+      if (m.isMTD) {
         m.label = "MTD Invoice";
       } else {
-        m.label = m.label + " Invoice";
+        m.label = m.label.replace(/\s*Invoice$/i,'').trim() + " Invoice";
       }
     });
   }
@@ -1203,7 +1341,7 @@ function renderOverview() {
       <span class="right">$${allTimeTotal.toLocaleString()} billed</span>
     </div>
     <div class="progress-track"><div class="progress-fill" style="width: ${Math.min(contractProgress, 100)}%"></div></div>
-    <div class="months">${monthly.map(m => `<span>${m.label}: $${m.total.toLocaleString()}</span>`).join('')}</div>
+    <div class="months">${monthly.map(m => `<span style="${m.isMTD ? 'color:#F59E0B;font-style:italic' : ''}">${m.label}${m.isMTD ? ' *' : ''}: $${m.total.toLocaleString()}</span>`).join('')}</div>
   `;
 
   // Charts
@@ -1227,9 +1365,15 @@ function renderRevenueChart(monthly) {
         backgroundColor: 'rgba(59,130,246,0.15)',
         fill: true,
         tension: 0.3,
-        pointRadius: 5,
-        pointBackgroundColor: '#3B82F6',
+        pointRadius: monthly.map(m => m.isMTD ? 7 : 5),
+        pointBackgroundColor: monthly.map(m => m.isMTD ? '#F59E0B' : '#3B82F6'),
+        pointBorderColor: monthly.map(m => m.isMTD ? '#fff' : '#3B82F6'),
+        pointBorderWidth: monthly.map(m => m.isMTD ? 2 : 1),
+        pointStyle: monthly.map(m => m.isMTD ? 'rectRot' : 'circle'),
         borderWidth: 2.5,
+        segment: {
+          borderDash: ctx => monthly[ctx.p1DataIndex]?.isMTD ? [5,5] : undefined,
+        }
       }]
     },
     options: chartOptions({ y: { ticks: { callback: v => '$' + (v / 1000).toFixed(0) + 'k' } } })
@@ -1275,7 +1419,9 @@ function renderDailyChart(monthly, currentMonth) {
       datasets: [{
         label: 'Pickups',
         data: monthly.map(m => m.pickups),
-        backgroundColor: '#10B981',
+        backgroundColor: monthly.map(m => m.isMTD ? 'rgba(16,185,129,0.35)' : '#10B981'),
+        borderColor: monthly.map(m => m.isMTD ? '#10B981' : 'transparent'),
+        borderWidth: monthly.map(m => m.isMTD ? 1.5 : 0),
         borderRadius: 4,
       }]
     },
@@ -1681,9 +1827,15 @@ function renderBilling() {
     </div>
   `;
 
+  const completedMonths = monthly.filter(m => !m.isMTD);
+  const mtdMonth = monthly.find(m => m.isMTD);
+  const completedRevenue = completedMonths.reduce((s,m) => s+m.total, 0);
+
   for (const m of monthly) {
-    tableHTML += `<div class="brow">
-      <span style="color:var(--text-primary);font-weight:600">${m.label}</span>
+    const mtdStyle = m.isMTD ? 'background:rgba(245,158,11,0.06);font-style:italic' : '';
+    const mtdBadge = m.isMTD ? ' <span style="font-size:8px;font-weight:700;color:#F59E0B;background:rgba(245,158,11,0.15);padding:1px 5px;border-radius:3px;margin-left:4px;vertical-align:middle">MTD</span>' : '';
+    tableHTML += `<div class="brow" style="${mtdStyle}">
+      <span style="color:var(--text-primary);font-weight:600">${m.label}${mtdBadge}</span>
       <span class="text-right" style="color:var(--text-secondary)">${m.pickups.toLocaleString()}</span>
       <span class="text-right" style="color:#3B82F6">$${m.agencies.toLocaleString()}</span>
       <span class="text-right" style="color:#F59E0B">$${m.tax.toLocaleString()}</span>
@@ -1702,6 +1854,9 @@ function renderBilling() {
     <span class="text-right" style="color:#8B5CF6">$${totalLibraries.toLocaleString()}</span>
     <span class="text-right" style="color:#F59E0B">$${allTimeTotal.toLocaleString()}</span>
   </div>`;
+  if (mtdMonth) {
+    tableHTML += `<div style="padding:8px 20px;font-size:10px;color:var(--text-dim);font-family:var(--font-mono)">* MTD Invoice is month-to-date (in progress). Completed invoices total: $${completedRevenue.toLocaleString()}</div>`;
+  }
 
   document.getElementById('billing-table').innerHTML = tableHTML;
 }
