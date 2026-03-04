@@ -260,6 +260,7 @@ body::before {
 .cb-months { display:flex; gap:16px; flex-wrap:wrap; }
 .cb-month { font-size:10px; color:var(--text3); font-family:var(--font-mono); }
 .cb-month span { color:var(--text2); }
+.cb-month.mtd { color:var(--gold); opacity:0.7; font-style:italic; }
 
 /* ── DRIVER CARDS ── */
 .driver-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin-bottom:20px; }
@@ -323,6 +324,7 @@ body::before {
   background:rgba(255,255,255,0.03);
 }
 .bill-row.total { background:rgba(201,168,76,0.06); font-weight:700; }
+.bill-row.mtd-row { background:rgba(201,168,76,0.03); font-style:italic; }
 .tr { text-align:right; }
 
 /* ── FILTER PILLS ── */
@@ -333,6 +335,20 @@ body::before {
   border:1px solid var(--border); background:transparent; color:var(--text2);
 }
 .fpill.active { border-color:var(--gold); color:var(--gold); background:var(--gold-dim); }
+
+/* ── MTD BADGE ── */
+.mtd-badge {
+  display:inline-block;
+  font-size:8px;
+  font-weight:700;
+  color:var(--gold);
+  background:var(--gold-dim);
+  padding:1px 5px;
+  border-radius:3px;
+  margin-left:4px;
+  vertical-align:middle;
+  letter-spacing:0.5px;
+}
 
 @media(max-width:768px) {
   .kpi-row { grid-template-columns:repeat(2,1fr); }
@@ -446,6 +462,9 @@ const CONFIG = {
   ratePerService: 65,
 };
 
+const STORAGE_KEY = 'empire_atm_monthly_cache';
+const DRIVER_CACHE_KEY = 'empire_atm_driver_cache';
+
 const msalConfig = {
   auth: {
     clientId: CONFIG.clientId,
@@ -459,9 +478,134 @@ const SCOPES = ["Files.Read","Sites.Read.All"];
 let msalInstance = null, accessToken = null;
 let siteId = null, driveId = null, fileItemId = null;
 
+// ── MONTH HELPERS (future-proof) ──────────────────────────────────────────
+const MONTH_NAMES = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+
+// Parse a month label like "JAN 25", "JAN 2025", "January 25", "JAN 26" → {month:0, year:2025}
+function parseMonthLabel(label) {
+  if (!label) return null;
+  const s = label.trim().toUpperCase();
+  const parts = s.split(/[\s,]+/);
+  if (parts.length < 2) return null;
+  const monthStr = parts[0].substring(0, 3);
+  const monthIdx = MONTH_NAMES.indexOf(monthStr);
+  if (monthIdx === -1) return null;
+  let yearNum = parseInt(parts[parts.length - 1], 10);
+  if (isNaN(yearNum)) return null;
+  // Normalize 2-digit year: 0-79 → 2000s, 80-99 → 1900s
+  if (yearNum < 100) yearNum += (yearNum < 80 ? 2000 : 1900);
+  return { month: monthIdx, year: yearNum };
+}
+
+// Create a normalized key for caching: "2025-01" format
+function monthKey(month, year) {
+  return `${year}-${String(month + 1).padStart(2, '0')}`;
+}
+
+// Create a display label: "JAN 25"
+function monthDisplayLabel(month, year) {
+  return `${MONTH_NAMES[month]} ${String(year).slice(-2)}`;
+}
+
+// Compare two parsed month objects: -1 if a < b, 0 if equal, 1 if a > b
+function compareMonths(a, b) {
+  if (a.year !== b.year) return a.year - b.year;
+  return a.month - b.month;
+}
+
+// Get the current MTD month from system date
+function getCurrentMonth() {
+  const now = new Date();
+  return { month: now.getMonth(), year: now.getFullYear() };
+}
+
+// Determine if a parsed month matches the current MTD month
+function isMTDMonth(parsed, currentMonth) {
+  if (!parsed || !currentMonth) return false;
+  return parsed.month === currentMonth.month && parsed.year === currentMonth.year;
+}
+
+// ── LOCAL STORAGE CACHE ───────────────────────────────────────────────────
+function getCachedMonthly() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  } catch(e) { return {}; }
+}
+
+function saveCachedMonthly(monthlyData, currentMTD) {
+  const cache = getCachedMonthly();
+  for (const m of monthlyData) {
+    const key = m._key;
+    if (!key) continue;
+    // Always save completed months; for MTD, save but mark it
+    cache[key] = {
+      label: m.label,
+      services: m.services,
+      revenue: m.revenue,
+      isMTD: m.isMTD || false,
+      updatedAt: Date.now(),
+    };
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
+}
+
+function getCachedDrivers() {
+  try {
+    return JSON.parse(localStorage.getItem(DRIVER_CACHE_KEY) || '{}');
+  } catch(e) { return {}; }
+}
+
+function saveCachedDrivers(driversAllTime) {
+  const cache = {};
+  for (const d of driversAllTime) {
+    cache[d.name] = { services: d.services, revenue: d.revenue, updatedAt: Date.now() };
+  }
+  localStorage.setItem(DRIVER_CACHE_KEY, JSON.stringify(cache));
+}
+
+// Merge live monthly data with cache, ensuring no completed months are lost
+function mergeMonthlyWithCache(liveMonthly, currentMTD) {
+  const cache = getCachedMonthly();
+  const liveKeys = new Set(liveMonthly.map(m => m._key));
+
+  // Start with all live data
+  const merged = [...liveMonthly];
+
+  // Add any cached months that are NOT in the live data and are NOT future months
+  for (const [key, cached] of Object.entries(cache)) {
+    if (liveKeys.has(key)) continue; // Already in live data
+
+    // Parse the cached key to check if it's a past month we should include
+    const [yearStr, monthStr] = key.split('-');
+    const parsed = { month: parseInt(monthStr, 10) - 1, year: parseInt(yearStr, 10) };
+
+    // Only include past completed months (before current MTD)
+    if (compareMonths(parsed, currentMTD) < 0 && cached.revenue > 0) {
+      merged.push({
+        label: cached.label || monthDisplayLabel(parsed.month, parsed.year),
+        services: cached.services,
+        revenue: cached.revenue,
+        isMTD: false,
+        _key: key,
+        _fromCache: true,
+      });
+    }
+  }
+
+  // Sort chronologically
+  merged.sort((a, b) => {
+    if (a._key < b._key) return -1;
+    if (a._key > b._key) return 1;
+    return 0;
+  });
+
+  return merged;
+}
+
 // ── STATE ─────────────────────────────────────────────────────────────────
 let D = {
   currentMonth: "",
+  currentMTD: null,    // {month, year} — the actual MTD month
   totalTerminals: 0,
   mtdServices: 0,
   mtdRevenue: 0,
@@ -469,7 +613,7 @@ let D = {
   allTimeRevenue: 0,
   avgMonthly: 0,
   bestMonth: 0,
-  monthly: [],       // [{label, services, revenue}]
+  monthly: [],       // [{label, services, revenue, isMTD, _key}]
   driversMTD: [],    // [{name, services, revenue}]
   driversAllTime: [],
   terminals: [],     // [{tid, location, route, services, revenue}]
@@ -477,8 +621,39 @@ let D = {
 
 // ── DEMO DATA ─────────────────────────────────────────────────────────────
 function loadDemo() {
+  // Determine current month dynamically for demo
+  const now = new Date();
+  const curMonth = now.getMonth(); // 0-indexed
+  const curYear = now.getFullYear();
+  const curLabel = monthDisplayLabel(curMonth, curYear);
+
+  // Build demo monthly data: 12 months of history + current MTD
+  const demoMonths = [];
+  const demoRevenues = [5915,5655,5005,4485,2405,2470,2990,1950,1950,2405,1690,2470];
+  for (let i = 12; i >= 1; i--) {
+    const d = new Date(curYear, curMonth - i, 1);
+    const m = d.getMonth();
+    const y = d.getFullYear();
+    demoMonths.push({
+      label: monthDisplayLabel(m, y),
+      services: Math.round(demoRevenues[(12 - i) % 12] / CONFIG.ratePerService),
+      revenue: demoRevenues[(12 - i) % 12],
+      isMTD: false,
+      _key: monthKey(m, y),
+    });
+  }
+  // Current MTD month
+  demoMonths.push({
+    label: curLabel,
+    services: 28,
+    revenue: 1820,
+    isMTD: true,
+    _key: monthKey(curMonth, curYear),
+  });
+
   D = {
-    currentMonth: "JAN 2026",
+    currentMonth: curLabel + " (MTD)",
+    currentMTD: { month: curMonth, year: curYear },
     totalTerminals: 70,
     mtdServices: 28,
     mtdRevenue: 1820,
@@ -486,21 +661,7 @@ function loadDemo() {
     allTimeRevenue: 41210,
     avgMonthly: 1381,
     bestMonth: 5915,
-    monthly: [
-      {label:"JAN 25",services:91,revenue:5915},
-      {label:"FEB 25",services:87,revenue:5655},
-      {label:"MAR 25",services:77,revenue:5005},
-      {label:"APR 25",services:69,revenue:4485},
-      {label:"MAY 25",services:37,revenue:2405},
-      {label:"JUN 25",services:38,revenue:2470},
-      {label:"JUL 25",services:46,revenue:2990},
-      {label:"AUG 25",services:30,revenue:1950},
-      {label:"SEP 25",services:30,revenue:1950},
-      {label:"OCT 25",services:37,revenue:2405},
-      {label:"NOV 25",services:26,revenue:1690},
-      {label:"DEC 25",services:38,revenue:2470},
-      {label:"JAN 26",services:28,revenue:1820},
-    ],
+    monthly: demoMonths,
     driversMTD: [
       {name:"Hiram Matias",services:13,revenue:845},
       {name:"Jerry Germond",services:4,revenue:260},
@@ -618,6 +779,10 @@ async function loadDashboard() {
 }
 
 async function fetchData() {
+  // Determine the real current month from system clock (source of truth)
+  const systemMTD = getCurrentMonth();
+  D.currentMTD = systemMTD;
+
   // KPIs: B7, F7, J7, N7 (row 7 = index 6)
   const kpiRaw = await readRange("Dashboard", "B7:N7");
   // Driver MTD: B13:D21
@@ -632,22 +797,62 @@ async function fetchData() {
   D.totalTerminals = pn(kpiRaw[0][0]);
   D.mtdServices    = pn(kpiRaw[0][4]);
   D.mtdRevenue     = pn(kpiRaw[0][8]);
-  D.currentMonth   = String(monthRaw[0][0] || "").trim();
+
+  const rawMonthLabel = String(monthRaw[0][0] || "").trim();
 
   D.allTimeServices = pn(allTimeRaw[0][0]);
   D.allTimeRevenue  = pn(allTimeRaw[2][0]);
   D.avgMonthly      = pn(allTimeRaw[4][0]);
   D.bestMonth       = pn(allTimeRaw[6][0]);
 
-  // Monthly trend
-  const monthLabels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","YTD TOTAL"];
-  D.monthly = [];
+  // ── Parse monthly trend data ──
+  // Try to determine current MTD month from the Excel label or fall back to system date
+  const parsedExcelMonth = parseMonthLabel(rawMonthLabel);
+  if (parsedExcelMonth) {
+    D.currentMTD = parsedExcelMonth;
+  }
+  D.currentMonth = monthDisplayLabel(D.currentMTD.month, D.currentMTD.year) + " (MTD)";
+
+  // Parse YTD rows from Excel
+  const liveMonthly = [];
   for (let i = 0; i < ytdRaw.length; i++) {
     const lbl = String(ytdRaw[i][0] || "").trim();
     const rev = pn(ytdRaw[i][1]);
-    if (!lbl || lbl === "YTD TOTAL") continue;
-    D.monthly.push({label: lbl, services: Math.round(rev / CONFIG.ratePerService), revenue: rev});
+    if (!lbl || lbl.toUpperCase() === "YTD TOTAL") continue;
+
+    const parsed = parseMonthLabel(lbl);
+    if (!parsed) continue;
+
+    const key = monthKey(parsed.month, parsed.year);
+    const mtd = isMTDMonth(parsed, D.currentMTD);
+
+    liveMonthly.push({
+      label: monthDisplayLabel(parsed.month, parsed.year),
+      services: mtd ? D.mtdServices : Math.round(rev / CONFIG.ratePerService),
+      revenue: rev,
+      isMTD: mtd,
+      _key: key,
+    });
   }
+
+  // If the current MTD month isn't in the YTD data, add it from KPIs
+  const mtdKey = monthKey(D.currentMTD.month, D.currentMTD.year);
+  const hasMTD = liveMonthly.some(m => m._key === mtdKey);
+  if (!hasMTD && (D.mtdServices > 0 || D.mtdRevenue > 0)) {
+    liveMonthly.push({
+      label: monthDisplayLabel(D.currentMTD.month, D.currentMTD.year),
+      services: D.mtdServices,
+      revenue: D.mtdRevenue,
+      isMTD: true,
+      _key: mtdKey,
+    });
+  }
+
+  // Merge with cached historical data to preserve completed months
+  D.monthly = mergeMonthlyWithCache(liveMonthly, D.currentMTD);
+
+  // Save to cache (completed months persist, MTD updates)
+  saveCachedMonthly(D.monthly, D.currentMTD);
 
   // Drivers MTD
   D.driversMTD = [];
@@ -657,9 +862,29 @@ async function fetchData() {
     D.driversMTD.push({name, services: pn(row[1]), revenue: pn(row[2])});
   }
 
-  // All-time drivers — read from month sheets dynamically would require many calls
-  // Use MTD data scaled for now; live version reads all month sheets
-  D.driversAllTime = [...D.driversMTD].sort((a,b) => b.services - a.services);
+  // All-time drivers — merge with cache
+  const driverCache = getCachedDrivers();
+  const driverMap = {};
+
+  // Start with cached data
+  for (const [name, data] of Object.entries(driverCache)) {
+    driverMap[name] = { name, services: data.services, revenue: data.revenue };
+  }
+
+  // MTD drivers update the map (take max of cached vs current)
+  for (const d of D.driversMTD) {
+    if (driverMap[d.name]) {
+      // If cached is higher, keep it (accumulated); otherwise this might be a fresh start
+      if (d.services > driverMap[d.name].services) {
+        driverMap[d.name] = { ...d };
+      }
+    } else {
+      driverMap[d.name] = { ...d };
+    }
+  }
+
+  D.driversAllTime = Object.values(driverMap).sort((a,b) => b.services - a.services);
+  saveCachedDrivers(D.driversAllTime);
 
   // Terminals: read Master_Terminals
   const termRaw = await readRange("Master_Terminals", "A4:H80");
@@ -699,39 +924,56 @@ function render() {
 
 function renderOverview() {
   const allTimeTotal = D.allTimeRevenue || D.monthly.reduce((s,m) => s+m.revenue, 0);
+  const completedMonths = D.monthly.filter(m => !m.isMTD);
+  const mtdMonth = D.monthly.find(m => m.isMTD);
 
   document.getElementById('kpi-row').innerHTML = `
     ${kpi("MTD Services", D.mtdServices.toLocaleString(), D.currentMonth, "gold", "🔧")}
-    ${kpi("MTD Revenue", "$"+D.mtdRevenue.toLocaleString(), "$${CONFIG.ratePerService}/service", "green", "💰")}
+    ${kpi("MTD Revenue", "$"+D.mtdRevenue.toLocaleString(), "$"+CONFIG.ratePerService+"/service", "green", "💰")}
     ${kpi("All-Time Revenue", "$"+allTimeTotal.toLocaleString(), D.allTimeServices+" total services", "blue", "📊")}
     ${kpi("Active Terminals", D.totalTerminals.toString(), "Across FL", "red", "🏧")}
   `;
 
-  // Contract bar — no fixed contract total for Empire, show YTD vs best
+  // Contract bar — YTD revenue with per-month breakdown
   const ytdTotal = D.monthly.reduce((s,m) => s+m.revenue, 0);
-  const months = D.monthly;
   document.getElementById('contract-bar').innerHTML = `
     <div class="cb-top">
       <span class="cb-label">Year-to-Date Revenue</span>
       <span class="cb-amount">$${ytdTotal.toLocaleString()} billed</span>
     </div>
-    <div class="cb-track"><div class="cb-fill" style="width:${Math.min((ytdTotal / Math.max(D.bestMonth * months.length, 1)) * 100, 100)}%"></div></div>
+    <div class="cb-track"><div class="cb-fill" style="width:${Math.min((ytdTotal / Math.max(D.bestMonth * D.monthly.length, 1)) * 100, 100)}%"></div></div>
     <div class="cb-months">
-      ${months.map(m => `<span class="cb-month">${m.label}: <span>$${m.revenue.toLocaleString()}</span></span>`).join('')}
+      ${D.monthly.map(m => `<span class="cb-month${m.isMTD?' mtd':''}">${m.label}${m.isMTD?' (MTD)':''}: <span>$${m.revenue.toLocaleString()}</span></span>`).join('')}
     </div>
   `;
 
-  // Revenue trend
+  // Revenue trend — MTD bar gets different styling
+  const barColors = D.monthly.map(m => m.isMTD ? 'rgba(201,168,76,0.4)' : 'rgba(201,168,76,0.8)');
+  const borderColors = D.monthly.map(m => m.isMTD ? '#c9a84c' : 'transparent');
+  const chartLabels = D.monthly.map(m => m.isMTD ? m.label+' *' : m.label);
+
   destroyChart('c-revenue');
   charts['c-revenue'] = new Chart(document.getElementById('c-revenue'), {
     type:'line',
     data:{
-      labels: D.monthly.map(m=>m.label),
+      labels: chartLabels,
       datasets:[{
         label:'Revenue',
         data: D.monthly.map(m=>m.revenue),
         borderColor:'#c9a84c', backgroundColor:'rgba(201,168,76,0.1)',
-        fill:true, tension:0.3, pointRadius:4, pointBackgroundColor:'#c9a84c', borderWidth:2,
+        fill:true, tension:0.3, pointRadius:4,
+        pointBackgroundColor: D.monthly.map(m => m.isMTD ? '#e8c96a' : '#c9a84c'),
+        pointStyle: D.monthly.map(m => m.isMTD ? 'rectRot' : 'circle'),
+        pointBorderColor: D.monthly.map(m => m.isMTD ? '#fff' : '#c9a84c'),
+        pointBorderWidth: D.monthly.map(m => m.isMTD ? 2 : 1),
+        borderWidth:2,
+        segment: {
+          borderDash: ctx => {
+            // Dashed line leading into MTD point
+            const nextIdx = ctx.p1DataIndex;
+            return D.monthly[nextIdx]?.isMTD ? [5,5] : undefined;
+          }
+        }
       }]
     },
     options: chartOpts({y:{ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}}})
@@ -754,13 +996,21 @@ function renderOverview() {
     }
   });
 
-  // Volume bar
+  // Volume bar — MTD gets a distinct pattern
   destroyChart('c-volume');
   charts['c-volume'] = new Chart(document.getElementById('c-volume'), {
     type:'bar',
     data:{
-      labels: D.monthly.map(m=>m.label),
-      datasets:[{label:'Services', data:D.monthly.map(m=>m.services), backgroundColor:'rgba(201,168,76,0.7)', borderRadius:4}]
+      labels: chartLabels,
+      datasets:[{
+        label:'Services',
+        data:D.monthly.map(m=>m.services),
+        backgroundColor: D.monthly.map(m => m.isMTD ? 'rgba(201,168,76,0.35)' : 'rgba(201,168,76,0.7)'),
+        borderColor: D.monthly.map(m => m.isMTD ? '#c9a84c' : 'transparent'),
+        borderWidth: D.monthly.map(m => m.isMTD ? 1.5 : 0),
+        borderDash: D.monthly.map(m => m.isMTD ? [3,3] : []),
+        borderRadius:4,
+      }]
     },
     options: chartOpts()
   });
@@ -817,7 +1067,7 @@ function renderDrivers() {
     options: chartOpts()
   });
 
-  // Trend — monthly breakdown by top 5 drivers using MTD data as proxy
+  // Trend — monthly breakdown by top 5 drivers
   const top5 = top.slice(0,5);
   destroyChart('c-driver-trend');
   charts['c-driver-trend'] = new Chart(document.getElementById('c-driver-trend'), {
@@ -867,12 +1117,16 @@ function filterTerminals(route, el) {
 }
 
 function renderBilling() {
-  const allTimeRevenue = D.monthly.reduce((s,m)=>s+m.revenue,0);
-  const allTimeSvc = D.monthly.reduce((s,m)=>s+m.services,0);
+  const completedMonths = D.monthly.filter(m => !m.isMTD);
+  const mtdMonth = D.monthly.find(m => m.isMTD);
+  const allRevenue = D.monthly.reduce((s,m) => s+m.revenue, 0);
+  const allSvc = D.monthly.reduce((s,m) => s+m.services, 0);
+  const completedRevenue = completedMonths.reduce((s,m) => s+m.revenue, 0);
+  const completedSvc = completedMonths.reduce((s,m) => s+m.services, 0);
 
   document.getElementById('billing-kpis').innerHTML = `
     ${kpi("Rate Per Service","$65","Fixed flat rate","gold","💵")}
-    ${kpi("All-Time Revenue","$"+allTimeRevenue.toLocaleString(),allTimeSvc+" services","green","✅")}
+    ${kpi("Completed Revenue","$"+completedRevenue.toLocaleString(),completedSvc+" services billed","green","✅")}
     ${kpi("Active Terminals",D.totalTerminals.toString(),"Across all routes","blue","🏧")}
   `;
 
@@ -883,21 +1137,30 @@ function renderBilling() {
   let cum = 0;
   for (const m of D.monthly) {
     cum += m.revenue;
-    html += `<div class="bill-row">
-      <span style="color:var(--text1);font-weight:600;font-family:var(--font-display)">${m.label}</span>
+    const mtdClass = m.isMTD ? ' mtd-row' : '';
+    const mtdTag = m.isMTD ? ' <span class="mtd-badge">MTD</span>' : '';
+    html += `<div class="bill-row${mtdClass}">
+      <span style="color:var(--text1);font-weight:600;font-family:var(--font-display)">${m.label}${mtdTag}</span>
       <span class="tr" style="color:var(--text2)">${m.services}</span>
       <span class="tr" style="color:var(--text3)">$${CONFIG.ratePerService}</span>
       <span class="tr" style="color:var(--gold)">$${m.revenue.toLocaleString()}</span>
       <span class="tr" style="color:var(--text2)">$${cum.toLocaleString()}</span>
     </div>`;
   }
+
+  // Total row — show completed total vs including MTD
   html += `<div class="bill-row total">
     <span>TOTAL</span>
-    <span class="tr">${allTimeSvc}</span>
+    <span class="tr">${allSvc}</span>
     <span class="tr"></span>
-    <span class="tr" style="color:var(--gold)">$${allTimeRevenue.toLocaleString()}</span>
-    <span class="tr" style="color:var(--gold)">$${allTimeRevenue.toLocaleString()}</span>
+    <span class="tr" style="color:var(--gold)">$${allRevenue.toLocaleString()}</span>
+    <span class="tr" style="color:var(--gold)">$${allRevenue.toLocaleString()}</span>
   </div>`;
+  if (mtdMonth) {
+    html += `<div style="padding:8px 20px;font-size:10px;color:var(--text3);font-family:var(--font-mono)">
+      * ${mtdMonth.label} is month-to-date (in progress). Completed total: $${completedRevenue.toLocaleString()}
+    </div>`;
+  }
   document.getElementById('bill-table').innerHTML = html;
 }
 
@@ -924,7 +1187,7 @@ function chartOpts(scalesOverride) {
 }
 
 function destroyChart(id) { if(charts[id]) { charts[id].destroy(); delete charts[id]; } }
-function show(id) { 
+function show(id) {
   const el = document.getElementById(id);
   if (id === 'loading-screen') { el.style.display = 'flex'; }
   else if (id === 'login-screen') { el.style.display = 'flex'; }
