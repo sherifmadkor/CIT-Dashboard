@@ -1128,13 +1128,18 @@ async function fetchAllData() {
         m.isMTD = false;
       }
     });
-    // If no entry matches current month, add one from KPIs
+    // If no entry matches current month, add one from KPIs + group breakdown
+    const gb = dashboardData.groupBreakdown || {};
     if (!mtdFound && (dashboardData.mtdPickups > 0 || dashboardData.mtdAmount > 0)) {
       const now = new Date();
       const mtdLabel = MONTH_ABBRS[now.getMonth()] + " " + String(now.getFullYear()).slice(2);
       dashboardData.monthlyTracking.push({
         label: mtdLabel, pickups: dashboardData.mtdPickups,
-        agencies: 0, tax: 0, parks: 0, libraries: 0, rate: CONFIG.ratePerPickup,
+        agencies: gb.agencies?.amount || 0,
+        tax: gb.tax?.amount || 0,
+        parks: gb.parks?.amount || 0,
+        libraries: gb.libraries?.amount || 0,
+        rate: CONFIG.ratePerPickup,
         total: dashboardData.mtdAmount, date: now, isMTD: true,
       });
       dashboardData.currentMonth = mtdLabel;
@@ -1144,6 +1149,16 @@ async function fetchAllData() {
         const kb = parseMonthKey(b.label) || '';
         return ka.localeCompare(kb);
       });
+    }
+    // Always enrich the MTD entry with group breakdown if its groups are empty
+    const mtdEntry = dashboardData.monthlyTracking.find(m => m.isMTD);
+    if (mtdEntry && mtdEntry.agencies === 0 && mtdEntry.tax === 0 && mtdEntry.parks === 0 && mtdEntry.libraries === 0 && mtdEntry.total > 0) {
+      mtdEntry.agencies = gb.agencies?.amount || 0;
+      mtdEntry.tax = gb.tax?.amount || 0;
+      mtdEntry.parks = gb.parks?.amount || 0;
+      mtdEntry.libraries = gb.libraries?.amount || 0;
+      // Also update pickups from KPI if zero
+      if (mtdEntry.pickups === 0) mtdEntry.pickups = dashboardData.mtdPickups || (gb.total?.pickups || 0);
     }
     if (!dashboardData.currentMonth) {
       const last = dashboardData.monthlyTracking[dashboardData.monthlyTracking.length - 1];
@@ -1588,15 +1603,27 @@ function renderDrivers() {
     options: chartOptions({ y: { min: 90, max: 101, ticks: { callback: v => v + '%' } } })
   });
 
-  // Monthly total pickups (completed vs missed)
+  // Monthly total pickups — use actual invoicing data for completed, driverLog for missed
   if (charts.summaryPickups) charts.summaryPickups.destroy();
+  const billingMonths = d.monthlyTracking || [];
+  // Map driverLog months to billing months by matching month keys
+  const completedByMonth = months.map(m => {
+    // Find matching billing entry: driverLog month "OCT 25" matches billing "OCT 25 Invoice" or "MTD Invoice"
+    const billing = billingMonths.find(bm => {
+      const bmClean = bm.label.replace(/\s*Invoice$/i,'').replace(/^MTD\s*/i,'').trim().toUpperCase();
+      return bmClean === m.toUpperCase() || (bm.isMTD && m.toUpperCase() === d.currentMonth?.toUpperCase());
+    });
+    return billing ? billing.pickups : 0;
+  });
+  const missedByMonth = months.map(m => log.filter(r => r.month === m).reduce((s, r) => s + (r.missed || 0), 0));
+
   charts.summaryPickups = new Chart(document.getElementById('chart-summary-pickups'), {
     type: 'bar',
     data: {
       labels: months,
       datasets: [
-        { label: 'Completed', data: months.map(m => log.filter(r => r.month === m).reduce((s, r) => s + r.completed, 0)), backgroundColor: '#10B981', borderRadius: 4, stack: 'a' },
-        { label: 'Missed', data: months.map(m => log.filter(r => r.month === m).reduce((s, r) => s + (r.missed || 0), 0)), backgroundColor: '#EF4444', borderRadius: 4, stack: 'a' },
+        { label: 'Completed', data: completedByMonth, backgroundColor: '#10B981', borderRadius: 4, stack: 'a' },
+        { label: 'Missed', data: missedByMonth, backgroundColor: '#EF4444', borderRadius: 4, stack: 'a' },
       ]
     },
     options: {
