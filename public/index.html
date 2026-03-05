@@ -192,6 +192,8 @@
   .dash-card.clip::before { background: var(--green); }
   .dash-card.empire { --card-accent: var(--amber); --card-bg: var(--amber-dim); }
   .dash-card.empire::before { background: var(--amber); }
+  .dash-card.holistic { --card-accent: var(--purple); --card-bg: var(--purple-dim); }
+  .dash-card.holistic::before { background: linear-gradient(90deg, var(--purple), var(--blue)); }
   .dash-card.coming { --card-accent: var(--text-3); opacity: 0.5; cursor: default; }
   .dash-card.coming:hover { transform: none; box-shadow: none; border-color: var(--border); }
 
@@ -307,7 +309,7 @@
 
 <div class="stats-strip">
   <div class="stat-item">
-    <div class="stat-val" style="color: var(--blue)">3</div>
+    <div class="stat-val" style="color: var(--blue)">4</div>
     <div class="stat-lbl">Active Dashboards</div>
   </div>
   <div class="stat-item">
@@ -387,6 +389,38 @@
         <span class="tag">SharePoint</span>
         <span class="tag">VBA Import</span>
         <span class="tag">Graph API</span>
+      </div>
+      <span class="card-arrow">→</span>
+    </div>
+  </a>
+
+  <!-- Holistic Dashboard -->
+  <a href="./holistic/index.html" class="dash-card holistic">
+    <div class="card-top">
+      <div class="card-icon">📊</div>
+      <span class="card-badge badge-new">✦ NEW</span>
+    </div>
+    <div class="card-title">Holistic · CFO Overview</div>
+    <div class="card-desc">Unified view across all routes — revenue comparison, cost tracking, and profit/loss analysis in one dashboard.</div>
+    <div class="card-metrics">
+      <div class="card-metric">
+        <div class="metric-val">3</div>
+        <div class="metric-lbl">Routes</div>
+      </div>
+      <div class="card-metric">
+        <div class="metric-val">P&L</div>
+        <div class="metric-lbl">Tracking</div>
+      </div>
+      <div class="card-metric">
+        <div class="metric-val">4 Tabs</div>
+        <div class="metric-lbl">Views</div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="card-tags">
+        <span class="tag">Multi-Route</span>
+        <span class="tag">Chart.js</span>
+        <span class="tag">MSAL Auth</span>
       </div>
       <span class="card-arrow">→</span>
     </div>
