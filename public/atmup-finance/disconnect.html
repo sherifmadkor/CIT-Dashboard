@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATMUP Finance — Disconnect QuickBooks Online</title>
+<style>
+  :root{--bg:#050810;--surface:#0c1120;--border:rgba(255,255,255,0.08);--text-1:#f0f4ff;--text-2:#8892a4;--green:#34d399;--blue:#4f8ef7}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text-1);line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:64px 24px}
+  header{border-bottom:1px solid var(--border);padding-bottom:28px;margin-bottom:36px}
+  .badge{display:inline-block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--green);background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);border-radius:999px;padding:4px 12px;margin-bottom:18px}
+  h1{font-size:30px;font-weight:700;margin-bottom:10px}
+  h2{font-size:19px;font-weight:600;margin:32px 0 10px;color:var(--text-1)}
+  p{color:var(--text-2);margin-bottom:14px}
+  ol{color:var(--text-2);margin:0 0 14px 22px}
+  li{margin-bottom:7px}
+  a{color:var(--blue);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .links{display:flex;gap:14px;flex-wrap:wrap;margin-top:28px}
+  .links a{border:1px solid var(--border);border-radius:10px;padding:12px 18px;color:var(--text-1);font-weight:500}
+  footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--border);font-size:13px;color:var(--text-2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="badge">Internal Application</span>
+    <h1>Disconnect QuickBooks Online</h1>
+    <p>ATMUP Finance — operated by ATM Universal Processors LLC (ATMUP).</p>
+  </header>
+
+  <h2>How to disconnect</h2>
+  <p>You can revoke ATMUP Finance's access to your QuickBooks Online company at any time:</p>
+  <ol>
+    <li>In QuickBooks Online, go to <strong>Settings &rarr; Apps</strong> (or the Intuit
+        <strong>My Apps</strong> page), find <strong>ATMUP Finance</strong>, and choose
+        <strong>Disconnect</strong>.</li>
+    <li>An authorized ATMUP administrator can also disconnect from within the internal ATMUP Finance
+        tool.</li>
+  </ol>
+
+  <h2>What happens after you disconnect</h2>
+  <ul style="color:var(--text-2);margin:0 0 14px 22px">
+    <li>The integration immediately stops pulling any data from QuickBooks Online.</li>
+    <li>The OAuth tokens are invalidated and no further API calls are made.</li>
+    <li>Because the app only reads report data and stores no QuickBooks records, there is nothing
+        retained to delete; cached dashboard figures simply stop refreshing.</li>
+  </ul>
+
+  <div class="links">
+    <a href="./">Overview</a>
+    <a href="./privacy.html">Privacy Policy</a>
+    <a href="./terms.html">Terms of Use (EULA)</a>
+    <a href="mailto:sherif@atm-up.com">Contact</a>
+  </div>
+
+  <footer>
+    ATM Universal Processors LLC &middot; Contact: <a href="mailto:sherif@atm-up.com">sherif@atm-up.com</a> &middot; Effective June 12, 2026
+  </footer>
+</div>
+</body>
+</html>
