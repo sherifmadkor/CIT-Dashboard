@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATMUP Finance — QuickBooks Online Integration</title>
+<style>
+  :root{--bg:#050810;--surface:#0c1120;--border:rgba(255,255,255,0.08);--text-1:#f0f4ff;--text-2:#8892a4;--green:#34d399;--blue:#4f8ef7}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text-1);line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:64px 24px}
+  header{border-bottom:1px solid var(--border);padding-bottom:28px;margin-bottom:36px}
+  .badge{display:inline-block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--green);background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);border-radius:999px;padding:4px 12px;margin-bottom:18px}
+  h1{font-size:30px;font-weight:700;margin-bottom:10px}
+  h2{font-size:19px;font-weight:600;margin:32px 0 10px;color:var(--text-1)}
+  p{color:var(--text-2);margin-bottom:14px}
+  ul{color:var(--text-2);margin:0 0 14px 22px}
+  li{margin-bottom:7px}
+  a{color:var(--blue);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .links{display:flex;gap:14px;flex-wrap:wrap;margin-top:28px}
+  .links a{border:1px solid var(--border);border-radius:10px;padding:12px 18px;color:var(--text-1);font-weight:500}
+  .links a:hover{border-color:var(--blue);text-decoration:none}
+  footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--border);font-size:13px;color:var(--text-2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="badge">Internal Application</span>
+    <h1>ATMUP Finance — QuickBooks Online Integration</h1>
+    <p>An internal financial-reporting integration operated by ATM Universal Processors LLC (ATMUP).</p>
+  </header>
+
+  <h2>What this application does</h2>
+  <p>ATMUP Finance is a private, internal-use integration that connects ATM Universal Processors LLC's
+  own QuickBooks Online company to the company's internal Microsoft Power BI reporting environment.
+  It is used by ATMUP's finance team to automate the company's own management reporting (Profit &amp;
+  Loss, Balance Sheet, Cash Flow, and Accounts Receivable / Payable dashboards).</p>
+
+  <h2>How it works</h2>
+  <ul>
+    <li>An authorized ATMUP administrator connects the company's QuickBooks Online account using Intuit's standard OAuth 2.0 authorization.</li>
+    <li>The application reads accounting <strong>report data only</strong> (e.g. the QuickBooks Profit &amp; Loss and Balance Sheet reports) via the Intuit QuickBooks Online Accounting API.</li>
+    <li>That data refreshes a set of internal finance dashboards. No accounting records are created, edited, or deleted.</li>
+  </ul>
+
+  <h2>Data &amp; access</h2>
+  <ul>
+    <li><strong>Read-only.</strong> Scope: <code>com.intuit.quickbooks.accounting</code> (read).</li>
+    <li><strong>Internal only.</strong> The integration is not offered to the public and accesses only ATMUP's own QuickBooks company.</li>
+    <li><strong>Not sold or shared.</strong> Financial data is never sold, rented, or shared with third parties.</li>
+  </ul>
+
+  <div class="links">
+    <a href="./privacy.html">Privacy Policy</a>
+    <a href="./terms.html">Terms of Use (EULA)</a>
+    <a href="mailto:sherif@atm-up.com">Contact</a>
+  </div>
+
+  <footer>
+    ATM Universal Processors LLC &middot; Contact: <a href="mailto:sherif@atm-up.com">sherif@atm-up.com</a> &middot; Effective June 12, 2026
+  </footer>
+</div>
+</body>
+</html>
